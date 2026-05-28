@@ -1,0 +1,23 @@
+Migração: D:\_WORK_\work_python_and_R\___WORK5___\Weather5 -> D:\_WORK_\work_python_and_R\___WORK___\Previsao_Pesca
+Início: 2026-05-28 20:19:09
+
+[✅] Copiado: config_v3_1.json
+[✅] Copiado: config_loader.py
+[✅] Copiado: previsao_pesca_v3_1.py
+[✅] Copiado: treinar_modelo_ml_v3_1.py
+[✅] Copiado: prever_amanha_v3_1.py
+[✅] Copiado: notificar_telegram.py
+[✅] Copiado: pipeline_orquestrador_v3_1.py
+[✅] Copiado: run_pesca_v3_1_automated.bat
+[✅] Copiado: previsao_pesca_v2_10.py
+[✅] Copiado: previsao_pesca_v2.8.bat
+[✅] Copiado: previsao_pesca_ml_v3.db
+[✅] Copiado: modelo_pesca_v3_robusto.pkl
+[✅] Copiado: previsao_amanha.json
+[✅] Copiado: Capturas.csv
+[✅] Copiado: historico_temperaturas_castelo_bode.csv
+[✅] Copiado: automacao_v3.1.log
+[✅] Copiado: backup_arquitetura_v3_1.py
+[✅] Copiado: migrar_projeto_pesca.py
+
+📊 Resumo: 18/18 ficheiros copiados.

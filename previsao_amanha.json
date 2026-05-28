@@ -1,0 +1,27 @@
+{
+  "data_alvo": "2026-05-29",
+  "score_previsto": 14.9,
+  "classificacao": "FRACO",
+  "especie_recomendada": "Savel",
+  "melhor_horario": "Final da tarde (17h-20h)",
+  "nota_especie": "condições fracas",
+  "alertas": [
+    "Score baixo — condições desfavoráveis"
+  ],
+  "condicoes_chave": {
+    "Tw": 25.0,
+    "Temp_Ar": 23.9,
+    "Chuva_24h": 0.0,
+    "Humidade": 70.0,
+    "Lua": "Crescente Fim (94.2%)",
+    "Vento_Max": 25.9,
+    "Ta_Media_5d": 24.6
+  },
+  "norm_params": {
+    "max_kg": 4.92,
+    "max_qtd": 3.0,
+    "n_sessoes": 10,
+    "data_calibracao": "2026-05-28"
+  },
+  "nota_ml": "Modelo v3.1 | n_treino=10 | max_kg=4.92 kg | Use como referência complementar."
+}
