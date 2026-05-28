@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+GERAR HASHES SEGUROS - v2 (Via bcrypt direto)
+Contorna bugs do stauth fora do runtime Streamlit.
+"""
+import bcrypt
+import sys
+
+def main():
+    print("🔐 Gerador de Hashes para streamlit-authenticator (via bcrypt)")
+    print("=" * 60)
+
+    # 🔑 ALTERE AQUI com as passwords reais
+    passwords = ['senha123', 'admin456']  
+
+    print(f"\n📋 A processar {len(passwords)} password(s)...\n")
+
+    try:
+        for pwd in passwords:
+            # Gera hash bcrypt compatível com streamlit-authenticator
+            hashed = bcrypt.hashpw(pwd.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            print(f"Password : {pwd}")
+            print(f"Hash     : {hashed}")
+            print("-" * 60)
+
+        print("\n✅ COPIE OS HASHES PARA `data/credentials.yml`:")
+        print("""
+credentials:
+  usernames:
+    mpmendespt:
+      email: mpmendespt@gmail.com
+      name: Manuel Mendes
+      password: COLE_O_HASH_AQUI
+      logged_in: False
+    admin:
+      email: admin@pesca.local
+      name: Administrador
+      password: COLE_O_HASH_AQUI
+      logged_in: False
+
+cookie:
+  expiry_days: 30
+  key: "uma_chave_secreta_longa_e_aleatoria_32+_chars"
+  name: pesca_session
+        """)
+    except ImportError:
+        print("❌ bcrypt não instalado. Execute: pip install bcrypt")
+    except Exception as e:
+        print(f"❌ Erro inesperado: {e}")
+
+if __name__ == "__main__":
+    main()
