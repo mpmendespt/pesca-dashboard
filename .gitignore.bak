@@ -3,8 +3,3 @@
 gerar_hashes_seguros_v2.py 
 ".streamlit/secrets.toml"
 Backup/
-# Segredos
-.env
-*.env
-data/credentials.yml
-.streamlit/secrets.toml

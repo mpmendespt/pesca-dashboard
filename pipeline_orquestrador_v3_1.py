@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""PIPELINE ORQUESTRADOR v3.1 - Executa os 4 módulos em sequência"""
+"""
+PIPELINE ORQUESTRADOR v3.1.1
+Executa os 6 módulos em sequência obrigatória:
+1. Snapshot -> 2. Treino ML -> 3. Previsão -> 4. Telegram -> 5. PDF -> 6. Sync Dashboard
+"""
 import subprocess
 import sys
 import os
@@ -11,40 +15,41 @@ logging.basicConfig(
     level=logging.INFO, 
     format='%(asctime)s | %(levelname)s | %(message)s'
 )
-logger = logging.getLogger("orquestrador_v3.1")
+logger = logging.getLogger("orquestrador_v3_1")
 
-# Lista de scripts na ordem obrigatória de execução
+# 🔒 Lista oficial de scripts (ordem de execução crítica)
 SCRIPTS = [
-    "previsao_pesca_v3_1.py",
-    "treinar_modelo_ml_v3_1.py",
-    "prever_amanha_v3_1.py",
-    "notificar_telegram.py"
+    "previsao_pesca_v3_1.py",          # 1. Snapshot meteo/lunar/hidro → SQLite
+    "treinar_modelo_ml_v3_1.py",       # 2. Treino/Retreino → modelo .pkl
+    "prever_amanha_v3_1.py",           # 3. Inferência ML → previsao_amanha.json
+    "notificar_telegram.py",           # 4. Alerta/Resumo via Telegram
+    "previsao_pesca_v2_10.py",         # 🆕 5. Geração PDF 4 págs + histórico CSV + Excel
+    "sync_dados_dashboard.py"          # 🆕 6. Cópia unidirecional → pesca-dashboard/data/
 ]
 
 def main():
-    # Usa exatamente o mesmo Python que invocou este script (Conda Pesquisas)
     python_exe = sys.executable
-    logger.info(f"🚀 Iniciando Orquestrador v3.1 | Python: {python_exe}")
+    logger.info(f"🚀 Iniciando Orquestrador v3.1.1 | Python: {python_exe}")
     
-    # Garante que estamos na pasta correta
+    # Garante que estamos na pasta onde o script está guardado
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-    for script in SCRIPTS:
+    for i, script in enumerate(SCRIPTS, 1):
         if not os.path.exists(script):
-            logger.error(f"❌ Script não encontrado: {script}")
+            logger.error(f"❌ Script obrigatório não encontrado: {script}")
             sys.exit(1)
             
-        logger.info(f"▶️ A executar: {script}")
-        # Executa e aguarda término limpo
+        logger.info(f"▶️ [{i}/{len(SCRIPTS)}] A executar: {script}")
+        # capture_output=False redireciona stdout/stderr para o terminal (e depois para o .log do .bat)
         result = subprocess.run([python_exe, script], capture_output=False, text=True)
         
         if result.returncode != 0:
-            logger.warning(f"⚠️ {script} terminou com código {result.returncode}")
+            logger.warning(f"⚠️ {script} terminou com código {result.returncode} (não crítico)")
         else:
             logger.info(f"✅ {script} concluído com sucesso.")
-        logger.info("-" * 40)
+        logger.info("-" * 45)
 
-    logger.info("🏁 Pipeline v3.1 finalizado. A sair...")
+    logger.info("🏁 Pipeline v3.1.1 finalizado (6 módulos). A sair...")
     sys.exit(0)
 
 if __name__ == "__main__":

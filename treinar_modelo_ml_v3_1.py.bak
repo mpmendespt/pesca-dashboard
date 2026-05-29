@@ -32,19 +32,37 @@ CONFIG_PATH = BASE_DIR / "config_v3_1.json"
 # CARREGAMENTO DE CONFIG (Limpeza automática de espaços/comentários)
 # ==============================================================================
 def load_config_safe():
-    """Carrega config_v3_1.json já limpo pelo force_fix_config.py"""
     if not CONFIG_PATH.exists():
         raise FileNotFoundError(f"⚠️ Config não encontrado: {CONFIG_PATH}")
         
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        cfg = json.load(f)  # Agora é 100% seguro
+    raw = CONFIG_PATH.read_text(encoding="utf-8")
+    
+    # 1. Remover comentários (# e //)
+    raw = re.sub(r'#.*?$', '', raw, flags=re.MULTILINE)
+    raw = re.sub(r'//.*?$', '', raw, flags=re.MULTILINE)
+    
+    # 2. Remover trailing commas antes de } ou ]
+    raw = re.sub(r',\s*([\]}])', r'\1', raw)
+    
+    # 3. 🛡️ Sanitizar caracteres de controlo invisíveis (causa do erro JSONDecodeError)
+    raw = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\u2028\u2029]', '', raw)
+    
+    try:
+        cfg = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"❌ JSON inválido mesmo após limpeza: {e}")
         
-    # Resolver paths relativos para absolutos (crucial para Session 0 & Cloud)
-    if "paths" in cfg:
-        for k, v in cfg["paths"].items():
-            cfg["paths"][k] = str((BASE_DIR / v).resolve())
-            
-    return cfg
+    # 4. Strip recursivo de chaves e valores string
+    def strip_obj(obj):
+        if isinstance(obj, dict):
+            return {str(k).strip(): strip_obj(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [strip_obj(i) for i in obj]
+        if isinstance(obj, str):
+            return obj.strip()
+        return obj
+        
+    return strip_obj(cfg)
 
 # ==============================================================================
 # LEITURA DE DADOS

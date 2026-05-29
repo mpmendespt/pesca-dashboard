@@ -50,18 +50,6 @@ from matplotlib.dates import DateFormatter
 def setup_logging(log_file="previsao_pesca.log", max_bytes=2*1024*1024, backup_count=2):
     logger = logging.getLogger("previsao_pesca")
     logger.setLevel(logging.DEBUG)
-    
-    # 🔇 SILENCIAR BIBLIOTECAS EXTERNAS (evita logs de 196 MB!)
-    logging.getLogger("pdfplumber").setLevel(logging.WARNING)
-    logging.getLogger("pdfminer").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("requests").setLevel(logging.WARNING)
-    
-    if logger.hasHandlers():
-        logger.handlers.clear()
-    # ... (resto da função mantém-se igual)    
-    logger = logging.getLogger("previsao_pesca")
-    logger.setLevel(logging.DEBUG)
     if logger.hasHandlers():
         logger.handlers.clear()
     fmt_file = logging.Formatter(

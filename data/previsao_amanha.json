@@ -1,6 +1,6 @@
 {
   "data_alvo": "2026-05-30",
-  "score_previsto": 14.3,
+  "score_previsto": 9.8,
   "classificacao": "FRACO",
   "especie_recomendada": "Savel",
   "melhor_horario": "Final da tarde (17h-20h)",
@@ -21,7 +21,7 @@
     "max_kg": 4.92,
     "max_qtd": 3.0,
     "n_sessoes": 10,
-    "data_calibracao": "2026-05-28"
+    "data_calibracao": "2026-05-29"
   },
-  "nota_ml": "Modelo v3.1 | n_treino=10 | max_kg=4.92 kg | Use como referência complementar."
+  "nota_ml": "Modelo v3.1 | n_treino=11 | max_kg=4.92 kg | Use como referência complementar."
 }
