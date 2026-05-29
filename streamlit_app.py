@@ -1,10 +1,14 @@
 # streamlit_app.py
 import streamlit as st
-from src.auth import get_authenticator, render_login, render_logout
+from src.auth import get_authenticator, render_login, render_logout, init_session_state
 
 st.set_page_config(page_title="🎣 Pesca Dashboard", page_icon="🎣", layout="wide", initial_sidebar_state="expanded")
 
 def main():
+    # ✅ Inicializar session_state ANTES de qualquer chamada ao authenticator
+    init_session_state()
+    
+    # ✅ Criar authenticator (não cacheado, mas seguro)
     authenticator = get_authenticator()
     
     # 1. Gestão de sessão
