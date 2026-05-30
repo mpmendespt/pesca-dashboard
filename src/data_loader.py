@@ -1,256 +1,212 @@
-# src/data_loader.py
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-DATA LOADER - PREVISÃO DE PESCA v3.1
-Carrega dados de Capturas.csv, SQLite, JSON e config com cache e fallbacks.
-Compatível com Streamlit Cloud e locale português (vírgulas como decimais).
+src/data_loader.py v3.1
+Leitura segura e cacheada de dados para o Dashboard Streamlit.
+Compatível com Windows Session 0, sincronização Weather5 → data/, e Capturas.csv formato PT.
 """
-import pandas as pd
-import sqlite3
-import json
-import streamlit as st
-from pathlib import Path
-from datetime import datetime, timedelta
 import logging
+import json
+import pandas as pd
+import numpy as np
+from pathlib import Path
+from datetime import datetime
 
-logger = logging.getLogger(__name__)
+# Tentativa segura de importar streamlit (permite importação por scripts CLI sem crash)
+try:
+    import streamlit as st
+    _HAS_ST = True
+except ImportError:
+    _HAS_ST = False
+    class _DummySt:
+        @staticmethod
+        def cache_data(ttl=300, show_spinner=True):
+            def decorator(func): return func
+            return decorator
+    st = _DummySt()
 
-# Caminhos relativos à raiz do projeto (pesca-dashboard/)
-DATA_DIR = Path(__file__).parent.parent / "data"
-CONFIG_FILE = Path(__file__).parent.parent / "config_v3_1.json"
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logger = logging.getLogger("data_loader")
 
-# ==============================================================================
-# CARREGAMENTO DE CONFIGURAÇÃO
-# ==============================================================================
-@st.cache_data(ttl=3600)  # Cache de 1 hora para config (muda raramente)
-def load_config():
-    """Carrega config_v3_1.json com fallback para valores padrão."""
-    try:
-        if CONFIG_FILE.exists():
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                config = json.load(f)
-            # Limpar espaços acidentais nas chaves (compatibilidade)
-            config = {k.strip(): v for k, v in config.items()}
-            for section in ["location", "thresholds", "water_temp_model", "paths"]:
-                if section in config:
-                    config[section] = {k.strip(): v for k, v in config[section].items()}
-            return config
-        else:
-            st.warning("⚠️ config_v3_1.json não encontrado. Usando valores padrão.")
-            return _default_config()
-    except Exception as e:
-        st.error(f"❌ Erro ao carregar config: {e}")
-        return _default_config()
+# 🔑 Resolução dinâmica de caminhos (funciona em Windows Session 0 & Linux/Cloud)
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / "data"
+CONFIG_PATH = BASE_DIR / "config_v3_1.json"
 
-def _default_config():
-    """Valores padrão caso o config falhe."""
-    return {
-        "location": {"lat": 39.65, "lon": -8.35, "name": "Castelo de Bode"},
-        "thresholds": {"limiar_frio": 11, "limiar_vento": 35, "limiar_chuva": 15},
-        "water_temp_model": {"tw_slope": 0.70, "tw_intercept": 7.71},
-        "paths": {"db_sqlite": "previsao_pesca_ml_v3.db", "capturas_csv": "Capturas.csv"}
-    }
+def _resolve_path(primary: Path, fallback: Path) -> Path | None:
+    """Retorna o primeiro path que existe."""
+    return primary if primary.exists() else (fallback if fallback.exists() else None)
 
 # ==============================================================================
-# CARREGAMENTO DE CAPTURAS (Capturas.csv)
-# ==============================================================================
-@st.cache_data(ttl=300)  # Cache de 5 minutos
-def load_capturas(file_path=None):
-    """
-    Carrega Capturas.csv com parsing de números portugueses (vírgula como decimal).
-    Calcula totais e adiciona metadados lunares se disponível.
-    """
-    if file_path is None:
-        file_path = DATA_DIR / "Capturas.csv"
-    
-    if not file_path.exists():
-        st.warning(f"⚠️ Ficheiro não encontrado: {file_path}")
-        return pd.DataFrame()
-    
-    try:
-        df = pd.read_csv(file_path, parse_dates=["Timestamp"])
-        
-        # Converter colunas numéricas com formato português (ex: "1,2" → 1.2)
-        for col in df.columns:
-            if col != "Timestamp" and df[col].dtype == "object":
-                df[col] = pd.to_numeric(
-                    df[col].astype(str).str.replace(",", "."), 
-                    errors="coerce"
-                ).fillna(0)
-        
-        # Calcular totais por espécie
-        species_qtd = [c for c in df.columns if c.endswith("_Qtd")]
-        species_kg = [c for c in df.columns if c.endswith("_Kg")]
-        
-        if species_qtd:
-            df["Total_Qtd"] = df[species_qtd].sum(axis=1)
-        if species_kg:
-            df["Total_Kg"] = df[species_kg].sum(axis=1)
-        
-        # Adicionar fase lunar aproximada (para filtros/visualização)
-        if not df.empty and "Fase_Lua_Captura" not in df.columns:
-            df["Fase_Lua_Captura"] = df["Timestamp"].apply(_approx_lunar_phase)
-        
-        logger.info(f"✅ Capturas carregadas: {len(df)} sessões, {df['Total_Qtd'].sum():.0f} peixes")
-        return df
-        
-    except Exception as e:
-        st.error(f"❌ Erro ao carregar capturas: {e}")
-        return pd.DataFrame()
-
-def _approx_lunar_phase(date):
-    """Calcula fase lunar aproximada para uma data (simples, sem bibliotecas externas)."""
-    # Referência: Lua Nova em 2026-05-16 17:00 UTC
-    ref = datetime(2026, 5, 16, 17, 0)
-    ciclo = 29.53058867
-    dias = (date - ref).total_seconds() / 86400.0
-    pos = (dias % ciclo) / ciclo
-    
-    if pos < 0.0625 or pos >= 0.9375: return "Lua Nova"
-    elif pos < 0.1875: return "Crescente I"
-    elif pos < 0.3125: return "Q. Crescente"
-    elif pos < 0.4375: return "Crescente Fim"
-    elif pos < 0.5625: return "Lua Cheia"
-    elif pos < 0.6875: return "Minguante I"
-    elif pos < 0.8125: return "Q. Minguante"
-    else: return "Minguante Fim"
-
-# ==============================================================================
-# CARREGAMENTO DE DADOS SQLITE (previsao_pesca_ml_v3.db)
+# CARREGADORES
 # ==============================================================================
 @st.cache_data(ttl=300)
-def load_sqlite_summary(db_path=None, limit=100):
-    """
-    Carrega resumo unificado da base SQLite para KPIs e gráficos.
-    Query otimizada para dashboard (junção meteo+lunar+capturas).
-    """
-    if db_path is None:
-        db_path = DATA_DIR / "previsao_pesca_ml_v3.db"
-    
-    if not db_path.exists():
-        st.warning(f"⚠️ Base SQLite não encontrada: {db_path}")
-        return None
-    
+def load_config() -> dict:
+    """Carrega config_v3_1.json com limpeza automática de espaços/chaves."""
+    path = _resolve_path(CONFIG_PATH, BASE_DIR / "config_v3_1.json")
+    if not path:
+        raise FileNotFoundError("❌ config_v3_1.json não encontrado.")
+        
+    with open(path, "r", encoding="utf-8") as f:
+        cfg = json.load(f)
+        
+    def strip_obj(obj):
+        if isinstance(obj, dict): return {k.strip(): strip_obj(v) for k, v in obj.items()}
+        if isinstance(obj, list): return [strip_obj(i) for i in obj]
+        if isinstance(obj, str): return obj.strip()
+        return obj
+    return strip_obj(cfg)
+
+@st.cache_data(ttl=300)
+def load_capturas() -> pd.DataFrame:
+    """Lê Capturas.csv, converte formato PT (1,2→1.2), calcula totais e filtra linhas vazias."""
+    csv_path = _resolve_path(DATA_DIR / "Capturas.csv", BASE_DIR / "Capturas.csv")
+    if not csv_path:
+        logger.warning("⚠️ Capturas.csv não encontrado.")
+        return pd.DataFrame()
+        
     try:
-        conn = sqlite3.connect(str(db_path))
+        df = pd.read_csv(csv_path, parse_dates=['Timestamp'])
+        # Conversão segura PT → EN (suporta valores entre aspas como "1,2")
+        for col in df.columns:
+            if col != 'Timestamp':
+                df[col] = pd.to_numeric(
+                    df[col].astype(str).str.replace(',', '.'), errors='coerce'
+                ).fillna(0.0)
+                
+        # Métricas derivadas
+        qtd_cols = [c for c in df.columns if c.endswith('_Qtd')]
+        kg_cols  = [c for c in df.columns if c.endswith('_Kg')]
+        df['Total_Qtd'] = df[qtd_cols].sum(axis=1) if qtd_cols else 0.0
+        df['Total_Kg']  = df[kg_cols].sum(axis=1)  if kg_cols  else 0.0
         
-        query = f"""
-            SELECT 
-                m.datetime, m.temp_ar, m.temp_agua, m.vento_kmh, m.pressao,
-                m.humidade, m.chuva_24h, m.nuvens, m.estacao, m.dia_semana,
-                l.fase_lua, l.moon_illumination, l.moonrise, l.moonset,
-                c.sucesso_score, c.especie as especie_captura, 
-                c.quantidade, c.peso_total
-            FROM meteo m
-            JOIN lunar l ON m.datetime = l.datetime
-            LEFT JOIN capturas c ON DATE(c.datetime) = DATE(m.datetime)
-            ORDER BY m.datetime DESC
-            LIMIT {limit}
-        """
+        # Score de sucesso (alinhado com treinar_modelo_ml_v3_1.py)
+        df['sucesso_score'] = np.clip(df['Total_Qtd'] * 12 + df['Total_Kg'] * 18, 0, 100)
         
-        df = pd.read_sql(query, conn)
-        conn.close()
+        # Filtrar dias sem registo
+        df = df[df['Total_Qtd'] > 0].reset_index(drop=True)
+        df['Data'] = df['Timestamp'].dt.date
         
-        if not df.empty:
-            df["datetime"] = pd.to_datetime(df["datetime"])
-            # Converter valores binários corrompidos (fallback de sanitização)
-            for col in ["humidade", "nuvens"]:
-                if col in df.columns and df[col].dtype == "object":
-                    df[col] = pd.to_numeric(df[col].astype(str).str.replace(r"[^\d.]", "", regex=True), errors="coerce")
-        
-        logger.info(f"✅ SQLite carregado: {len(df)} registos")
+        logger.info(f"✅ Capturas carregadas: {len(df)} sessões válidas")
         return df
-        
     except Exception as e:
-        st.error(f"❌ Erro ao carregar SQLite: {e}")
-        return None
+        logger.error(f"❌ Erro ao ler Capturas.csv: {e}")
+        return pd.DataFrame()
 
 @st.cache_data(ttl=60)
-def load_latest_meteo(db_path=None):
-    """Carrega apenas o registo meteorológico mais recente (para KPIs em tempo real)."""
-    df = load_sqlite_summary(db_path, limit=1)
-    return df.iloc[0] if df is not None and not df.empty else None
-
-# ==============================================================================
-# CARREGAMENTO DE PREVISÃO ML (previsao_amanha.json)
-# ==============================================================================
-@st.cache_data(ttl=60)  # Cache de 1 minuto (previsão muda diariamente)
-def load_previsao_amanha(file_path=None):
-    """Carrega a previsão ML mais recente para exibição no dashboard."""
-    if file_path is None:
-        file_path = DATA_DIR / "previsao_amanha.json"
-    
-    if not file_path.exists():
-        return None
-    
+def load_previsao_amanha() -> dict | None:
+    """Lê previsao_amanha.json gerado pelo pipeline."""
+    json_path = _resolve_path(DATA_DIR / "previsao_amanha.json", BASE_DIR / "previsao_amanha.json")
+    if not json_path: return None
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(json_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        st.warning(f"⚠️ Erro ao ler previsão: {e}")
+        logger.warning(f"⚠️ Erro ao ler previsao_amanha.json: {e}")
         return None
 
-# ==============================================================================
-# FUNÇÕES AUXILIARES PARA DASHBOARD
-# ==============================================================================
-def get_species_list(df_capturas):
-    """Retorna lista de espécies com capturas registadas."""
-    if df_capturas.empty:
-        return []
-    cols = [c.replace("_Qtd", "") for c in df_capturas.columns 
-            if c.endswith("_Qtd") and c != "Total_Qtd" and df_capturas[c].sum() > 0]
-    return sorted(cols)
+@st.cache_data(ttl=600)
+def load_sqlite_summary() -> dict:
+    """
+    Retorna resumo estatístico do SQLite (para KPIs rápidos).
+    Fallback seguro se a tabela não existir ou DB estiver vazio.
+    """
+    db_path = _resolve_path(DATA_DIR / "previsao_pesca_ml_v3.db", BASE_DIR / "previsao_pesca_ml_v3.db")
+    fallback = {"n_registos": 0, "data_ultima": None, "tw_media": None, "vento_media": None}
+    
+    if not db_path:
+        return fallback
+        
+    try:
+        import sqlite3
+        conn = sqlite3.connect(str(db_path))
+        # Query segura: ignora se coluna/tabela não existir
+        query = """
+        SELECT COUNT(*) as n, MAX(Data) as ultima, AVG(Tw) as tw_avg, AVG(Vento_Max_kmh) as vento_avg 
+        FROM previsao_diaria
+        """
+        df = pd.read_sql_query(query, conn)
+        conn.close()
+        
+        if df.empty or pd.isna(df.iloc[0]['n']) or df.iloc[0]['n'] == 0:
+            return fallback
+            
+        return {
+            "n_registos": int(df.iloc[0]['n']),
+            "data_ultima": df.iloc[0]['ultima'],
+            "tw_media": float(df.iloc[0]['tw_avg']) if pd.notna(df.iloc[0]['tw_avg']) else None,
+            "vento_media": float(df.iloc[0]['vento_avg']) if pd.notna(df.iloc[0]['vento_avg']) else None
+        }
+    except Exception:
+        return fallback
 
-def filter_capturas_by_date(df, start_date, end_date):
-    """Filtra dataframe de capturas por intervalo de datas."""
-    if df.empty:
+@st.cache_data(ttl=600)
+def load_sqlite_historico() -> pd.DataFrame:
+    """Lê dados meteo/hidro do SQLite (opcional, para análises avançadas)."""
+    db_path = _resolve_path(DATA_DIR / "previsao_pesca_ml_v3.db", BASE_DIR / "previsao_pesca_ml_v3.db")
+    if not db_path: return pd.DataFrame()
+    try:
+        import sqlite3
+        conn = sqlite3.connect(str(db_path))
+        df = pd.read_sql_query("SELECT * FROM previsao_diaria", conn)
+        conn.close()
+        df['Data'] = pd.to_datetime(df['Data']).dt.date
         return df
-    mask = (df["Timestamp"].dt.date >= start_date) & (df["Timestamp"].dt.date <= end_date)
-    return df[mask].copy()
+    except Exception:
+        return pd.DataFrame()
 
-def calculate_kpis(df_capturas, df_sqlite):
+@st.cache_data(ttl=300)
+def get_feature_importance() -> dict | None:
+    """Carrega feature_names e feature_importances do model_metadata.json."""
+    meta_path = _resolve_path(DATA_DIR / "model_metadata.json", BASE_DIR / "model_metadata.json")
+    if not meta_path:
+        return None
+    try:
+        with open(meta_path, "r", encoding="utf-8") as f:
+            meta = json.load(f)
+        return {
+            "feature_names": meta.get("feature_names", []),
+            "feature_importances": meta.get("feature_importances", [])
+        }
+    except Exception as e:
+        logger.warning(f"⚠️ Erro ao carregar feature importance: {e}")
+        return None
+        
+# ==============================================================================
+# UTILITÁRIOS PARA KPIs & DASHBOARD
+# ==============================================================================
+def calculate_kpis(df_capturas: pd.DataFrame, previsao: dict | None) -> dict:
     """Calcula KPIs principais para exibição no dashboard."""
-    kpis = {}
+    kpis = {
+        "score_previsto": previsao.get("score", 50) if previsao else 50,
+        "classe_prevista": previsao.get("classe", "MODERADO") if previsao else "MODERADO",
+        "tw_prevista": previsao.get("tw"),
+        "vento_previsto": previsao.get("vento"),
+        "chuva_prevista": previsao.get("chuva"),
+        "lua_fase": previsao.get("lua_fase"),
+        "lua_pct": previsao.get("lua_pct")
+    }
     
     if not df_capturas.empty:
-        kpis["sessoes"] = len(df_capturas)
-        kpis["total_peixes"] = int(df_capturas["Total_Qtd"].sum())
-        kpis["total_kg"] = round(df_capturas["Total_Kg"].sum(), 1)
-        kpis["media_kg_sessao"] = round(df_capturas["Total_Kg"].mean(), 1)
-    
-    if df_sqlite is not None and not df_sqlite.empty:
-        latest = df_sqlite.iloc[0]
-        kpis["tw_atual"] = latest.get("temp_agua", None)
-        kpis["vento_atual"] = latest.get("vento_kmh", None)
-        kpis["ultima_atualizacao"] = latest.get("datetime", None)
-    
+        kpis.update({
+            "total_sessoes": len(df_capturas),
+            "total_peixes": int(df_capturas['Total_Qtd'].sum()),
+            "total_kg": round(df_capturas['Total_Kg'].sum(), 1),
+            "score_medio": round(df_capturas['sucesso_score'].mean(), 1),
+            "melhor_score": int(df_capturas['sucesso_score'].max()),
+            "especie_top": df_capturas.filter(like='_Qtd').sum().idxmax().replace('_Qtd', '') if any(df_capturas.filter(like='_Qtd').sum() > 0) else "—"
+        })
     return kpis
 
-def get_feature_importance(model_data=None):
-    """Retorna feature importance do modelo ML se disponível."""
-    if model_data is None:
-        model_path = Path(__file__).parent.parent / "modelo_pesca_v3_robusto.pkl"
-        if not model_path.exists():
-            return None
-        try:
-            import pickle
-            with open(model_path, "rb") as f:
-                model_data = pickle.load(f)
-        except:
-            return None
-    
-    if "feature_names" not in model_data or "model" not in model_data:
-        return None
-    
-    try:
-        model = model_data["model"]
-        features = model_data["feature_names"]
-        importances = model.feature_importances_
-        
-        df_imp = pd.DataFrame({
-            "feature": features,
-            "importance": importances
-        }).sort_values("importance", ascending=False).head(10)
-        
-        return df_imp
-    except:
-        return None
+def get_species_list(df: pd.DataFrame) -> list:
+    """Retorna lista ordenada de espécies com registos > 0."""
+    if df.empty: return []
+    return sorted([c.replace('_Qtd', '') for c in df.columns if c.endswith('_Qtd') and df[c].sum() > 0])
+
+def format_kpi_value(value, suffix="", decimals=1):
+    """Formata valor para exibição em KPI."""
+    if value is None: return f"—{suffix}"
+    if isinstance(value, float):
+        return f"{value:.{decimals}f}{suffix}"
+    return f"{value}{suffix}"
+   

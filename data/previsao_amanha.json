@@ -1,27 +1,14 @@
 {
-  "data_alvo": "2026-05-30",
-  "score_previsto": 9.8,
-  "classificacao": "FRACO",
-  "especie_recomendada": "Savel",
-  "melhor_horario": "Final da tarde (17h-20h)",
-  "nota_especie": "condições fracas",
-  "alertas": [
-    "Score baixo — condições desfavoráveis"
-  ],
-  "condicoes_chave": {
-    "Tw": 25.1,
-    "Temp_Ar": 22.3,
-    "Chuva_24h": 0.0,
-    "Humidade": 72.0,
-    "Lua": "Crescente Fim (97.7%)",
-    "Vento_Max": 24.2,
-    "Ta_Media_5d": 24.8
-  },
-  "norm_params": {
-    "max_kg": 4.92,
-    "max_qtd": 3.0,
-    "n_sessoes": 10,
-    "data_calibracao": "2026-05-29"
-  },
-  "nota_ml": "Modelo v3.1 | n_treino=11 | max_kg=4.92 kg | Use como referência complementar."
+  "data": "2026-05-31",
+  "score": 45.0,
+  "classe": "BOM",
+  "tw": 25.3,
+  "chuva": 0.0,
+  "vento": 27.0,
+  "lua_fase": "Lua Cheia",
+  "lua_pct": 100.0,
+  "especie_alvo": "Achiga",
+  "horario": "Final da tarde (17h-20h)",
+  "local": "Barragem de Castelo de Bode - Ilha do Lombo",
+  "modelo": "3.1"
 }

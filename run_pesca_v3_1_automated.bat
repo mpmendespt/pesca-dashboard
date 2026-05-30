@@ -1,55 +1,65 @@
 @echo off
-setlocal
-:: =========================================================
-:: AUTOMAÇÃO DIÁRIA - PESCA v3.1 (Versão Previsao_Pesca)
-:: Ambiente: Conda "Pesquisas" | Python direto
-:: Diretório Base: D:\_WORK_\work_python_and_R\___WORK___\Previsao_Pesca
-:: =========================================================
+setlocal EnableExtensions EnableDelayedExpansion
 
-:: 🔧 CAMINHOS DO MINIFORGE (Idêntico ao ambiente original)
-set "ENV_DIR=C:\miniforge3\envs\Pesquisas"
-set "PYTHON_EXE=%ENV_DIR%\python.exe"
-set "SCRIPT_DIR=D:\_WORK_\work_python_and_R\___WORK___\Previsao_Pesca"
-
-:: 🔑 VARIÁVEIS CRÍTICAS PARA SESSION 0 (TASK SCHEDULER)
-set "CONDA_PREFIX=%ENV_DIR%"
-set "PATH=%ENV_DIR%;%ENV_DIR%\Scripts;%ENV_DIR%\Library\bin;%PATH%"
+:: 🔐 AMBIENTE SESSION 0 & CONDA (Crucial para evitar deadlocks & crashes)
 set "CONDA_DLL_SEARCH_MODIFICATION_ENABLE=1"
-set "PYTHONUNBUFFERED=1"
-set "PYTHONDONTWRITEBYTECODE=1"
-set "PYTHONFAULTHANDLER=1"
 set "OMP_NUM_THREADS=1"
-set "MKL_NUM_THREADS=1"
-set "OPENBLAS_NUM_THREADS=1"
+set "PYTHONUNBUFFERED=1"
+set "PYTHONIOENCODING=utf-8"
 
-:: 📝 LOGS (na mesma pasta do script)
-set "LOG_EXEC=%SCRIPT_DIR%\automacao_v3.1.log"
+:: Carregar variáveis de ambiente (.env) para Telegram/Scripts
+if exist "%~dp0.env" (
+    for /f "tokens=1,* delims==" %%a in ('findstr /v "^[#;]" "%~dp0.env"') do (
+        set "%%a=%%b"
+    )
+)
 
-cd /d "%SCRIPT_DIR%"
-
-echo [%date% %time%] INICIO AUTOMACAO v3.1 >> "%LOG_EXEC%"
-
-:: Validar Python
-if not exist "%PYTHON_EXE%" (
-    echo ERRO: Python nao encontrado em %PYTHON_EXE% >> "%LOG_EXEC%"
-    endlocal
+:: Ativar Conda Pesquisas
+call "C:\miniforge3\Scripts\activate.bat" Pesquisas
+if errorlevel 1 (
+    echo ❌ Falha ao ativar ambiente Conda Pesquisas
     exit /b 1
 )
 
-:: Validar Orquestrador
-if not exist "%SCRIPT_DIR%\pipeline_orquestrador_v3_1.py" (
-    echo ERRO: pipeline_orquestrador_v3_1.py nao encontrado >> "%LOG_EXEC%"
-    endlocal
-    exit /b 1
-)
+cd /d "%~dp0"
+set "LOGS_DIR=%~dp0logs"
+if not exist "%LOGS_DIR%" mkdir "%LOGS_DIR%"
 
-:: 🔄 EXECUTAR PIPELINE COMPLETO (6 passos)
-echo [%time%] A executar pipeline_orquestrador_v3_1.py... >> "%LOG_EXEC%"
-"%PYTHON_EXE%" "%SCRIPT_DIR%\pipeline_orquestrador_v3_1.py" >> "%LOG_EXEC%" 2>&1
-set EXIT_CODE=%ERRORLEVEL%
+set "TIMESTAMP=%DATE:/=-%_%TIME::=-%"
+set "TIMESTAMP=!TIMESTAMP: =0!"
+set "LOG_FILE=%LOGS_DIR%\pipeline_!TIMESTAMP!.log"
 
-echo [%date% %time%] FIM AUTOMACAO v3.1. Codigo: %EXIT_CODE% >> "%LOG_EXEC%"
-echo ========================================== >> "%LOG_EXEC%"
+echo 🚀 Pipeline v3.1 Iniciado em %TIMESTAMP% > "%LOG_FILE%"
+echo. >> "%LOG_FILE%"
 
-endlocal
-exit /b %EXIT_CODE%
+:: 1. Sincronização
+echo [1/5] Sincronizando Weather5 → data/...
+python -u sync_dados_dashboard.py >> "%LOG_FILE%" 2>&1
+if errorlevel 1 echo ⚠️ Sync falhou (continuando) >> "%LOG_FILE%"
+
+:: 2. Snapshot
+echo [2/5] Snapshot Meteo/Hidro...
+python -u previsao_pesca_v3_1.py >> "%LOG_FILE%" 2>&1
+if errorlevel 1 echo ⚠️ Snapshot falhou (continuando) >> "%LOG_FILE%"
+
+:: 3. Treino ML
+echo [3/5] Treino Modelo ML...
+python -u treinar_modelo_ml_v3_1.py >> "%LOG_FILE%" 2>&1
+if errorlevel 1 echo ⚠️ Treino falhou (continuando) >> "%LOG_FILE%"
+
+:: 4. Previsão
+echo [4/5] Gerando previsão amanhã...
+python -u prever_amanha_v3_1.py >> "%LOG_FILE%" 2>&1
+if errorlevel 1 echo ⚠️ Previsão falhou >> "%LOG_FILE%"
+
+:: 5. Telegram
+echo [5/5] Enviando alerta Telegram...
+python -u notificar_telegram.py >> "%LOG_FILE%" 2>&1
+if errorlevel 1 echo ⚠️ Notificação falhou >> "%LOG_FILE%"
+
+echo. >> "%LOG_FILE%"
+echo ✅ Pipeline Concluído em %TIME% >> "%LOG_FILE%"
+
+:: Se chamado pelo Task Scheduler (/auto), fecha silenciosamente. Se manual, pausa.
+if "%1"=="/auto" exit /b 0
+pause

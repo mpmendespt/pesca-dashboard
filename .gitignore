@@ -41,3 +41,17 @@ venv/
 env/
 .venv/
 .env/
+
+# Scripts utilitários, migração e versões antigas (não fazem parte do pipeline principal)
+previsao_pesca_v2_10.py
+migrar_projeto_pesca.py
+criar_estrutura_dashboard.py
+criar_estado.py
+copiar_prerequisitos_dashboard.py
+backup_arquitetura_v3_1.py
+gerar_hashes_seguros.py
+gerar_hashes_seguros_v2.py
+force_fix_config.py
+fix_metadata.py
+sanitize_config.py
+limpar_logs_antigos.py

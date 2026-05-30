@@ -1,125 +1,88 @@
-# pages/4_⚙️_Configurações.py
 import streamlit as st
-import yaml
+
+# 🔐 GUARD DE AUTENTICAÇÃO (Impede acesso sem login)
+if not st.session_state.get("authentication_status"):
+    st.warning(" Acesso restrito. A sessão expirou ou não está autenticada.")
+    st.page_link("streamlit_app.py", label="🔑 Ir para Login", icon="🔑")
+    st.stop()
+import subprocess
+import sys
 from pathlib import Path
 from src.data_loader import load_config
-from src.auth import get_authenticator
 
-st.set_page_config(page_title="⚙️ Configurações", page_icon="⚙️", layout="wide")
+st.set_page_config(page_title="Configurações", page_icon="⚙️", layout="wide")
 
 def main():
-    st.title("⚙️ Configurações")
+    st.title("⚙️ Configurações e Diagnóstico do Sistema")
     
     config = load_config()
-    authenticator = get_authenticator()
+    base_dir = Path(__file__).resolve().parent.parent
     
-    # Verificar permissões de admin
-    if st.session_state.get("username") != "admin":
-        st.warning("🔐 Apenas administradores podem aceder a esta página.")
-        return
+    # --- 1. Diagnóstico de Ficheiros ---
+    st.subheader("📂 Estado dos Ficheiros")
     
-    # Abas para organização
-    tab1, tab2, tab3 = st.tabs(["👥 Utilizadores", "🔗 Dados", "📋 Sistema"])
+    files_to_check = {
+        "Capturas.csv": base_dir / "data" / "Capturas.csv",
+        "Config": base_dir / "config_v3_1.json",
+        "Modelo (.pkl)": base_dir / "data" / "modelo_pesca_v3_robusto.pkl",
+        "Previsão (.json)": base_dir / "data" / "previsao_amanha.json",
+        "Credenciais": base_dir / "data" / "credentials.yml",
+        "Database (.db)": base_dir / "data" / "previsao_pesca_ml_v3.db"
+    }
     
-    with tab1:
-        st.subheader("👥 Gestão de Utilizadores")
-        st.info("""
-        Para adicionar/remover utilizadores:
-        1. Edite `data/credentials.yml` localmente, OU
-        2. Use **Streamlit Secrets** no painel Cloud (Settings → Secrets)
+    cols = st.columns(2)
+    idx = 0
+    for name, path in files_to_check.items():
+        exists = path.exists()
+        size = f"{path.stat().st_size / 1024:.1f} KB" if exists else "—"
+        status = "✅ OK" if exists else "❌ Falta"
         
-        Formato YAML:
-        ```yaml
-        credentials:
-          usernames:
-            novo_utilizador:
-              email: "email@exemplo.com"
-              name: "Nome Completo"
-              password: "$2b$12$hash_gerado_via_bcrypt"
-              logged_in: false
-        ```
-        """)
-        
-        # Mostrar utilizadores atuais (apenas nomes, sem passwords)
-        try:
-            creds_file = Path("data/credentials.yml")
-            if creds_file.exists():
-                with open(creds_file, "r", encoding="utf-8") as f:
-                    creds = yaml.safe_load(f)
-                usernames = list(creds.get("credentials", {}).get("usernames", {}).keys())
-                st.write(f"**Utilizadores registados:** {', '.join(usernames)}")
-            else:
-                st.warning("⚠️ `data/credentials.yml` não encontrado.")
-        except Exception as e:
-            st.error(f"Erro ao ler credenciais: {e}")
+        with cols[idx % 2]:
+            st.markdown(f"**{name}**  \n{status} ({size})")
+            if exists:
+                st.caption(f"`{path}`")
+        idx += 1
+
+    st.divider()
+
+    # --- 2. Ferramentas de Manutenção ---
+    st.subheader("🛠️ Ferramentas")
     
-    with tab2:
-        st.subheader("🔗 Sincronização de Dados")
-        
-        st.markdown("""
-        ### Opções para manter dados atualizados na cloud:
-        
-        #### 1. GitHub Actions + Dropbox (Recomendado)
-        - Configure um workflow que faz push diário de:
-          - `Capturas.csv`
-          - `previsao_amanha.json`
-          - `previsao_pesca_ml_v3.db` (opcional, grande)
-        - O dashboard lê da pasta Dropbox montada em `/mount/data/`
-        
-        #### 2. Google Sheets (Simples)
-        - Publique `Capturas.csv` como Google Sheet público
-        - Use `gspread` para ler diretamente no `data_loader.py`
-        
-        #### 3. Streamlit Cloud Mount (Avançado)
-        - No painel Cloud: **Settings → Data connections**
-        - Conecte Dropbox/Google Drive
-        - Monte em `/mount/data/`
-        """)
-        
-        st.subheader("🔄 Forçar Atualização de Cache")
-        if st.button("🔄 Recarregar Dados Agora"):
+    col_a, col_b = st.columns(2)
+    
+    with col_a:
+        st.markdown("**Sincronização de Dados**")
+        st.caption("Força a cópia de `Weather5` → `data/`.")
+        if st.button("🔄 Sincronizar Agora", type="primary"):
+            with st.spinner("A sincronizar..."):
+                script_path = base_dir / "sync_dados_dashboard.py"
+                result = subprocess.run([sys.executable, str(script_path)], capture_output=True, text=True)
+                if result.returncode == 0:
+                    st.success("✅ Sincronização concluída!")
+                    st.code(result.stdout)
+                else:
+                    st.error("❌ Erro na sincronização.")
+                    st.code(result.stderr)
+
+    with col_b:
+        st.markdown("**Limpeza de Cache**")
+        st.caption("Limpa cache do Streamlit (pode exigir refresh no browser).")
+        if st.button("🧹 Limpar Cache"):
             st.cache_data.clear()
-            st.success("✅ Cache limpo. Dados recarregados na próxima interação.")
-    
-    with tab3:
-        st.subheader("📋 Informações do Sistema")
-        
-        # Mostrar config atual
-        st.json(config, expanded=False)
-        
-        # Versões e paths
-        st.subheader("🔍 Diagnóstico")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("**Ficheiros de dados:**")
-            data_files = ["Capturas.csv", "previsao_pesca_ml_v3.db", "previsao_amanha.json"]
-            for f in data_files:
-                path = Path("data") / f
-                exists = "✅" if path.exists() else "❌"
-                size = f"{path.stat().st_size/1024:.1f} KB" if path.exists() else "N/A"
-                st.write(f"{exists} `{f}` ({size})")
-        
-        with col2:
-            st.write("**Módulos Python:**")
-            modules = ["pandas", "numpy", "plotly", "streamlit-authenticator"]
-            for mod in modules:
-                try:
-                    __import__(mod)
-                    st.write(f"✅ `{mod}`")
-                except ImportError:
-                    st.write(f"❌ `{mod}` (não instalado)")
-        
-        # Botão de download de log (se existir)
-        log_file = Path("automacao_v3.1.log")
-        if log_file.exists():
-            with open(log_file, "r", encoding="utf-8") as f:
-                log_content = f.read()
-            st.download_button(
-                label="📥 Download Log de Automação",
-                data=log_content,
-                file_name="automacao_v3.1.log",
-                mime="text/plain"
-            )
+            st.cache_resource.clear()
+            st.success("✅ Cache limpa. Recarregue a página.")
+
+    st.divider()
+
+    # --- 3. Sobre ---
+    st.subheader("ℹ️ Sobre o Sistema")
+    st.json({
+        "Versão": config.get("version", "Desconhecida"),
+        "Projeto": config.get("project", "Previsão Pesca"),
+        "Local": config.get("location", {}).get("name", "N/A"),
+        "APIs": ["Open-Meteo", "SNIRH (PDF)"],
+        "Stack": ["Python 3.10", "Streamlit", "Scikit-Learn", "Plotly"]
+    })
 
 if __name__ == "__main__":
     main()

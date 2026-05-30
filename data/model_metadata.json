@@ -1,0 +1,44 @@
+{
+  "feature_names": [
+    "Chuva_Total_mm",
+    "Dir_Graus",
+    "Fase_Lua_Num",
+    "Pressao_Delta",
+    "Pressao_Media_hPa",
+    "Ta_Media_5D",
+    "Temp_Media_C",
+    "Tw",
+    "Vento_Max_kmh",
+    "Chuva_Cat_Intensa",
+    "Chuva_Cat_Leve",
+    "Chuva_Cat_Seco",
+    "Vento_Cat_Forte",
+    "Vento_Cat_Moderado",
+    "Vento_Cat_Fraco"
+  ],
+  "feature_importances": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+  ],
+  "metrics": {
+    "r2": 0.838,
+    "rmse": 1.94,
+    "n_samples": 9
+  },
+  "model_type": "Fallback_Dict",
+  "trained_at": "2026-05-29T22:30:00",
+  "config_version": "3.1"
+}
