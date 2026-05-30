@@ -40,17 +40,23 @@ import pandas as pd
 from datetime import datetime, timezone, timedelta
 from logging.handlers import RotatingFileHandler
 from config_loader import CONFIG, is_fishing_day
+# No topo de cada script (após imports)
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from src.logging_setup import setup_pipeline_logger
 
+logger = setup_pipeline_logger(name="pesca_v3_1")  # Mude o 'name' por script se quiser
 # ── Logging ───────────────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s | %(levelname)-8s | %(message)s",
-    handlers=[
-        logging.FileHandler(CONFIG["paths"]["log_file"], encoding="utf-8"),
-        logging.StreamHandler(sys.stdout),
-    ],
-)
-logger = logging.getLogger("pesca_v3_1")
+# logging.basicConfig(
+    # level=logging.DEBUG,
+    # format="%(asctime)s | %(levelname)-8s | %(message)s",
+    # handlers=[
+        # logging.FileHandler(CONFIG["paths"]["log_file"], encoding="utf-8"),
+        # logging.StreamHandler(sys.stdout),
+    # ],
+# )
+# logger = logging.getLogger("pesca_v3_1")
 
 # ── Imports opcionais com detecção suave ──────────────────────────────────────
 try:

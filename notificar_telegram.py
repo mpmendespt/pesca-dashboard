@@ -8,10 +8,17 @@ Compatível com Session 0, variáveis de ambiente, e fallback seguro.
 import os, sys, json, logging, requests
 from pathlib import Path
 from dotenv import load_dotenv
+# No topo de cada script (após imports)
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from src.logging_setup import setup_pipeline_logger
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(message)s',
-                    handlers=[logging.StreamHandler(sys.stdout)])
-logger = logging.getLogger("telegram_notifier")
+logger = setup_pipeline_logger(name="notificar_telegram.py")  # Mude o 'name' por script se quiser
+
+# logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(message)s',
+                    # handlers=[logging.StreamHandler(sys.stdout)])
+# logger = logging.getLogger("telegram_notifier")
 
 # Carrega .env se existir (para CLI/Task Scheduler)
 load_dotenv(Path(__file__).resolve().parent / ".env")

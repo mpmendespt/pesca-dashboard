@@ -9,6 +9,8 @@ data/credentials.yml
 .streamlit/secrets.toml
 .streamlit/secrets.toml.*
 .streamlit/state/
+data/credentials.yml.bak
+*.pyc
 
 # 🗑️ 2. Logs e Temporários (O seu log atual tem 200MB!)
 *.log

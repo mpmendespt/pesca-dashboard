@@ -10,10 +10,17 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
+# No topo de cada script (após imports)
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from src.logging_setup import setup_pipeline_logger
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(message)s',
-                    handlers=[logging.StreamHandler(sys.stdout)])
-logger = logging.getLogger("inferencia_v3_1")
+logger = setup_pipeline_logger(name="prever_amanha_v3_1.py")  # Mude o 'name' por script se quiser
+
+# logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(message)s',
+                    # handlers=[logging.StreamHandler(sys.stdout)])
+# logger = logging.getLogger("inferencia_v3_1")
 
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "config_v3_1.json"

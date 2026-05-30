@@ -39,13 +39,20 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_squared_error
 from sklearn.model_selection import KFold, cross_val_score
 from config_loader import CONFIG
+# No topo de cada script (após imports)
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from src.logging_setup import setup_pipeline_logger
 
-warnings.filterwarnings("ignore")
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
-)
-logger = logging.getLogger(__name__)
+logger = setup_pipeline_logger(name="treinar_modelo_ml_v3_1")  # Mude o 'name' por script se quiser
+
+# warnings.filterwarnings("ignore")
+# logging.basicConfig(
+    # level=logging.INFO,
+    # format="%(asctime)s | %(levelname)s | %(message)s",
+# )
+# logger = logging.getLogger(__name__)
 
 CAT_COLS = ["estacao", "dia_semana", "fase_lua"]
 

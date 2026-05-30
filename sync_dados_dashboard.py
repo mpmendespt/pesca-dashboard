@@ -9,13 +9,19 @@ Compatível com Session 0, comparação de timestamps e falha silenciosa.
 import os, sys, shutil, logging
 from pathlib import Path
 from datetime import datetime
+# No topo de cada script (após imports)
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from src.logging_setup import setup_pipeline_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s | %(levelname)-8s | %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
-logger = logging.getLogger("sync_dashboard")
+logger = setup_pipeline_logger(name="sync_dados_dashboard")  # Mude o 'name' por script se quiser
+# logging.basicConfig(
+    # level=logging.INFO,
+    # format='%(asctime)s | %(levelname)-8s | %(message)s',
+    # handlers=[logging.StreamHandler(sys.stdout)]
+# )
+# logger = logging.getLogger("sync_dashboard")
 
 # 📍 Caminhos fixos conforme estrutura real
 PROJECT_ROOT = Path(__file__).resolve().parent
