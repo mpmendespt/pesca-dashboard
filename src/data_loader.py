@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from datetime import datetime
+from src.scoring_engine import calculate_fishing_score
 try:
     import streamlit as st
     _HAS_ST = True
@@ -111,15 +112,24 @@ def load_capturas() -> pd.DataFrame:
         # Métricas derivadas
         qtd_cols = [c for c in df.columns if c.endswith('_Qtd')]
         kg_cols  = [c for c in df.columns if c.endswith('_Kg')]
+        
         df['Total_Qtd'] = df[qtd_cols].sum(axis=1) if qtd_cols else 0
         df['Total_Kg']  = df[kg_cols].sum(axis=1)  if kg_cols  else 0.0
-        df['sucesso_score'] = np.clip(df['Total_Qtd'] * 12 + df['Total_Kg'] * 18, 0, 100)
+        #df['sucesso_score'] = np.clip(df['Total_Qtd'] * 12 + df['Total_Kg'] * 18, 0, 100)
+        # ✅ ATUALIZAÇÃO: Usa o novo motor de scoring
+        df['sucesso_score'] = calculate_fishing_score(df)
         
+        
+        # Filtrar dias sem registo
+        #df = df[df['Total_Qtd'] > 0].reset_index(drop=True)
+        #df['Data'] = df['Timestamp'].dt.date
         # Filtrar dias sem registo
         df = df[df['Total_Qtd'] > 0].reset_index(drop=True)
         df['Data'] = df['Timestamp'].dt.date
         
         # LIMPEZA EXTREMA
+        #df = _extreme_clean_dataframe(df)
+        # ... (Limpeza Extrema mantida igual) ...
         df = _extreme_clean_dataframe(df)
         
         # 🔒 FIX PYARROW FINAL: Remover explicitamente 'Valor' e forçar tipos limpos

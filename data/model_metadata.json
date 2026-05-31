@@ -1,44 +1,18 @@
 {
-  "feature_names": [
-    "Chuva_Total_mm",
-    "Dir_Graus",
-    "Fase_Lua_Num",
-    "Pressao_Delta",
-    "Pressao_Media_hPa",
-    "Ta_Media_5D",
-    "Temp_Media_C",
-    "Tw",
-    "Vento_Max_kmh",
-    "Chuva_Cat_Intensa",
-    "Chuva_Cat_Leve",
-    "Chuva_Cat_Seco",
-    "Vento_Cat_Forte",
-    "Vento_Cat_Moderado",
-    "Vento_Cat_Fraco"
+  "model_type": "Ridge(Fallback)",
+  "version": "3.1.5",
+  "trained_at": "2026-05-31T17:53:49.030202",
+  "n_samples": 11,
+  "cv_strategy": "LeaveOneOut",
+  "cv_r2": 0.0,
+  "features_used": [
+    "Mes",
+    "Dia_Ano",
+    "Fase_Ciclo"
   ],
   "feature_importances": [
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0
-  ],
-  "metrics": {
-    "r2": 0.838,
-    "rmse": 1.94,
-    "n_samples": 9
-  },
-  "model_type": "Fallback_Dict",
-  "trained_at": "2026-05-29T22:30:00",
-  "config_version": "3.1"
+    0.8136,
+    0.041,
+    0.1453
+  ]
 }

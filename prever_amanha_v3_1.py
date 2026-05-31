@@ -1,163 +1,249 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-prever_amanha_v3_1.py - Inferência robusta para dashboard & Telegram
-Gera previsao_amanha.json com estrutura 100% validada pelo dashboard.
-Fallback seguro se APIs ou modelo falharem.
+prever_amanha_v3_1.py - Inferência e Previsão para Amanhã
+Carrega modelo ML, obtém dados meteorológicos, gera previsão e exporta JSON.
+Otimizado para execução via batch (run_pesca_v3_1_automated.bat)
 """
-import os, sys, json, logging, pickle, requests, math
+import sys
+import json
+import logging
+import numpy as np
+import requests
+import joblib
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-import numpy as np
-import pandas as pd
-# No topo de cada script (após imports)
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from src.logging_setup import setup_pipeline_logger
 
-logger = setup_pipeline_logger(name="prever_amanha_v3_1.py")  # Mude o 'name' por script se quiser
+# ==============================================================================
+# CONFIGURAÇÃO DE LOGGING
+# ==============================================================================
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)-7s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger("inferencia")
 
-# logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(message)s',
-                    # handlers=[logging.StreamHandler(sys.stdout)])
-# logger = logging.getLogger("inferencia_v3_1")
-
+# ==============================================================================
+# CAMINHOS & CONSTANTES
+# ==============================================================================
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "config_v3_1.json"
+MODEL_PATH  = BASE_DIR / "data" / "modelo_pesca_v3_robusto.pkl"
+OUTPUT_PATH = BASE_DIR / "data" / "previsao_amanha.json"
 
-def load_config():
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+# Referência astronómica para cálculo lunar
+LUNA_NOVA_REF = datetime(2026, 5, 16, 17, 0, tzinfo=timezone.utc)
+CICLO_LUNAR_DIAS = 29.53058867
 
-def get_lunar_phase(date_obj):
-    lua_ref = datetime(2026, 5, 16, 17, 0, tzinfo=timezone.utc)
-    ciclo = 29.53058867
-    d_utc = datetime(date_obj.year, date_obj.month, date_obj.day, 12, 0, tzinfo=timezone.utc)
-    dias = (d_utc - lua_ref).total_seconds() / 86400.0
-    pos = (dias % ciclo) / ciclo
-    ilum = (1 - math.cos(2 * math.pi * pos)) / 2 * 100
-    fases = ["Lua Nova", "Crescente I", "Q. Crescente", "Crescente Fim", 
-             "Lua Cheia", "Minguante I", "Q. Minguante", "Minguante Fim"]
-    idx = min(int(pos * 8), 7)
-    return fases[idx], round(ilum, 1)
-
-def fetch_openmeteo(lat, lon):
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-    url = (f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
-           f"&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant"
-           f"&start_date={tomorrow}&end_date={tomorrow}&timezone=Europe/Lisbon")
+# ==============================================================================
+# FUNÇÕES AUXILIARES
+# ==============================================================================
+def load_config() -> dict:
+    """Carrega configuração base do sistema"""
     try:
-        r = requests.get(url, timeout=15)
-        r.raise_for_status()
-        d = r.json()["daily"]
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        # Limpar espaços em branco nas chaves (comum em JSON manual)
+        return {k.strip(): v for k, v in cfg.items()}
+    except Exception as e:
+        logger.error(f"❌ Falha ao carregar config: {e}")
+        raise
+
+def get_tomorrow_weather(lat: float, lon: float) -> dict | None:
+    """Obtém previsão diária para amanhã via Open-Meteo"""
+    logger.info("🌤️ A obter previsão meteorológica para amanhã...")
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": lat, "longitude": lon,
+        "daily": ["temperature_2m_max", "temperature_2m_min", 
+                  "precipitation_sum", "wind_speed_10m_max", "wind_direction_10m_dominant"],
+        "timezone": "Europe/Lisbon",
+        "forecast_days": 2  # Hoje + Amanhã
+    }
+    try:
+        resp = requests.get(url, params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()["daily"]
         return {
-            "max_t": d["temperature_2m_max"][0], "min_t": d["temperature_2m_min"][0],
-            "media_t": (d["temperature_2m_max"][0] + d["temperature_2m_min"][0]) / 2,
-            "chuva": float(d["precipitation_sum"][0] or 0),
-            "vento": float(d["wind_speed_10m_max"][0] or 0),
-            "dir_vento": float(d["wind_direction_10m_dominant"][0] or 0)
+            "date": data["time"][1],
+            "temp_max": float(data["temperature_2m_max"][1]),
+            "temp_min": float(data["temperature_2m_min"][1]),
+            "rain": float(data["precipitation_sum"][1]),
+            "wind_max": float(data["wind_speed_10m_max"][1]),
+            "wind_dir": float(data["wind_direction_10m_dominant"][1])
         }
     except Exception as e:
-        logger.warning(f"⚠️ Open-Meteo falhou: {e}. A usar fallback.")
-        return {"max_t": 20, "min_t": 12, "media_t": 16, "chuva": 0.0, "vento": 10.0, "dir_vento": 180}
+        logger.error(f"❌ Erro ao obter meteo: {e}")
+        return None
 
-def get_avg_temp_5d(lat, lon):
-    today = datetime.now().date()
-    start = (today - timedelta(days=5)).strftime("%Y-%m-%d")
-    end = (today - timedelta(days=1)).strftime("%Y-%m-%d")
-    url = (f"https://archive-api.open-meteo.com/v1/archive?latitude={lat}&longitude={lon}"
-           f"&start_date={start}&end_date={end}&daily=temperature_2m_max,temperature_2m_min&timezone=Europe/Lisbon")
+def estimate_tw(lat: float, lon: float, config: dict) -> float:
+    """Estima Tw usando média dos últimos N dias + modelo linear"""
+    n_days = config.get("water_temp_model", {}).get("tw_media_dias", 5)
+    slope = config.get("water_temp_model", {}).get("tw_slope", 0.70)
+    intercept = config.get("water_temp_model", {}).get("tw_intercept", 7.71)
+    
+    logger.info(f"🌡️ A calcular Ta média ({n_days} dias) para estimar Tw...")
+    hoje = datetime.now().date()
+    inicio = (hoje - timedelta(days=n_days)).strftime("%Y-%m-%d")
+    fim = (hoje - timedelta(days=1)).strftime("%Y-%m-%d")
+    
+    url = (f"https://archive-api.open-meteo.com/v1/archive"
+           f"?latitude={lat}&longitude={lon}&start_date={inicio}&end_date={fim}"
+           f"&daily=temperature_2m_max,temperature_2m_min&timezone=Europe%2FLisbon")
     try:
-        r = requests.get(url, timeout=10)
-        r.raise_for_status()
-        d = r.json()["daily"]
-        meds = [(mx+mn)/2 for mx, mn in zip(d["temperature_2m_max"], d["temperature_2m_min"]) if mx is not None]
-        return float(np.mean(meds)) if meds else 16.0
-    except: return 16.0
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        d = resp.json()["daily"]
+        medias = [(mx+mn)/2 for mx, mn in zip(d["temperature_2m_max"], d["temperature_2m_min"]) 
+                  if mx is not None and mn is not None]
+        ta_mean = sum(medias) / len(medias) if medias else 16.0
+        tw = slope * ta_mean + intercept
+        logger.info(f"✅ Ta média: {ta_mean:.1f}°C → Tw estimada: {tw:.1f}°C")
+        return round(tw, 1)
+    except Exception as e:
+        logger.warning(f"⚠️ Falha ao estimar Tw ({e}). A usar fallback 16.0°C")
+        return 16.0
 
-def main():
+def get_moon_phase(date_str: str) -> tuple:
+    """Calcula fase lunar visível (nome + %)"""
+    dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    dias = (dt - LUNA_NOVA_REF).total_seconds() / 86400.0
+    pos = (dias % CICLO_LUNAR_DIAS) / CICLO_LUNAR_DIAS
+    
+    if pos < 0.0625 or pos >= 0.9375: return "Lua Nova", 0
+    if pos < 0.1875: return "Crescente", 15
+    if pos < 0.3125: return "Quarto Crescente", 35
+    if pos < 0.4375: return "Gibosa Crescente", 60
+    if pos < 0.5625: return "Lua Cheia", 100
+    if pos < 0.6875: return "Gibosa Minguante", 60
+    if pos < 0.8125: return "Quarto Minguante", 35
+    return "Minguante", 15
+
+def ml_feature_proxy(date_str: str) -> tuple:
+    """Gera EXATAMENTE as mesmas features usadas no treino"""
+    dt = datetime.strptime(date_str, "%Y-%m-%d")
+    mes = dt.month
+    dia_ano = dt.timetuple().tm_yday
+    # Proxy sinusoidal idêntico ao treino
+    fase_ciclo = np.sin(dia_ano * (2 * np.pi / 29.5))
+    return mes, dia_ano, float(fase_ciclo)
+
+def load_model_safe() -> object | None:
+    """Carrega modelo com validação de integridade e fallback automático"""
+    if not MODEL_PATH.exists():
+        logger.info("ℹ️ Ficheiro .pkl não encontrado.")
+        return None
+        
+    size = MODEL_PATH.stat().st_size
+    if size < 400:
+        logger.warning(f"⚠️ Modelo suspeito ({size}B). Possível escrita incompleta.")
+        return None
+        
+    try:
+        model = joblib.load(MODEL_PATH)
+        if not hasattr(model, 'predict'):
+            logger.warning("⚠️ Objeto .pkl não é um modelo scikit-learn válido.")
+            return None
+        logger.info(f"✅ Modelo carregado: {type(model).__name__} ({size/1024:.1f} KB)")
+        return model
+    except Exception as e:
+        logger.warning(f"⚠️ Erro ao carregar modelo: {e}")
+        return None
+
+# ==============================================================================
+# LÓGICA PRINCIPAL
+# ==============================================================================
+def run_inference(config: dict, weather: dict) -> dict:
     logger.info("🔮 Início Inferência v3.1")
-    cfg = load_config()
-    lat, lon = cfg["location"]["lat"], cfg["location"]["lon"]
-    local = cfg["location"]["name"]
-    limiar_vento = cfg["thresholds"]["limiar_vento"]
-    limiar_chuva = cfg["thresholds"]["limiar_chuva"]
-
-    meteo = fetch_openmeteo(lat, lon)
-    ta_5d = get_avg_temp_5d(lat, lon)
-    tw = cfg["water_temp_model"]["tw_slope"] * ta_5d + cfg["water_temp_model"]["tw_intercept"]
-    tw = round(float(np.clip(tw, 8, 30)), 1)
-
-    amanha = datetime.now().date() + timedelta(days=1)
-    lua_fase, lua_pct = get_lunar_phase(amanha)
-
-    # Inferência ML
-    model_path = BASE_DIR / "data" / "modelo_pesca_v3_robusto.pkl"
-    score, classe = 45.0, "MODERADO"  # fallback seguro
-    if model_path.exists():
+    
+    model = load_model_safe()
+    mes, dia_ano, fase_ciclo = ml_feature_proxy(weather["date"])
+    features = np.array([[mes, dia_ano, fase_ciclo]])
+    
+    score = 45.0  # Fallback padrão
+    if model is not None:
         try:
-            with open(model_path, "rb") as f: model = pickle.load(f)
-            meta_path = BASE_DIR / "data" / "model_metadata.json"
-            if meta_path.exists():
-                with open(meta_path, "r") as f: meta = json.load(f)
-                feat_names = meta.get("feature_names", [])
-            else: feat_names = []
-
-            feat = {
-                "Chuva_Total_mm": meteo["chuva"], "Dir_Graus": meteo["dir_vento"],
-                "Pressao_Delta": 0.0, "Pressao_Media_hPa": 1013.25,
-                "Ta_Media_5D": ta_5d, "Temp_Media_C": meteo["media_t"],
-                "Tw": tw, "Vento_Max_kmh": meteo["vento"], "Fase_Lua_Num": 3.0,
-                "Chuva_Cat_Intensa": 1.0 if meteo["chuva"] > limiar_chuva else 0.0,
-                "Chuva_Cat_Leve": 1.0 if 0 < meteo["chuva"] <= limiar_chuva else 0.0,
-                "Chuva_Cat_Seco": 1.0 if meteo["chuva"] == 0 else 0.0,
-                "Vento_Cat_Forte": 1.0 if meteo["vento"] > limiar_vento else 0.0,
-                "Vento_Cat_Moderado": 1.0 if 15 < meteo["vento"] <= limiar_vento else 0.0,
-                "Vento_Cat_Fraco": 1.0 if meteo["vento"] <= 15 else 0.0
-            }
-            df_feat = pd.DataFrame([feat])
-            if feat_names:
-                df_feat = df_feat.reindex(columns=feat_names, fill_value=0.0)
-            pred = model.predict(df_feat)[0]
-            score = round(float(np.clip(pred, 0, 100)), 1)
+            pred = model.predict(features)[0]
+            score = float(pred)
+            logger.info(f"📈 Score ML bruto: {score:.1f}")
         except Exception as e:
             logger.warning(f"⚠️ Inferência ML falhou: {e}")
-
+            
+    # Clip 0-100
+    score = max(0.0, min(100.0, score))
+    
+    # Classificação
     if score >= 70: classe = "EXCELENTE"
-    elif score >= 40: classe = "BOM"
-    elif score >= 20: classe = "MODERADO"
+    elif score >= 50: classe = "BOM"
+    elif score >= 30: classe = "MODERADO"
     else: classe = "FRACO"
-
-    especie = "Lucio"
-    if tw > 20: especie = "Achiga"
-    elif tw < 12: especie = "Truta"
-    elif meteo["chuva"] > 5: especie = "Carpa"
-
-    horario = "Manhã cedo (6h-9h)"
-    if tw > 18: horario = "Final da tarde (17h-20h)"
-    elif lua_fase in ["Lua Nova", "Lua Cheia"]: horario = "Madrugada (4h-7h)"
-
-    # ✅ Estrutura EXATA exigida pelo validador/dashboard
-    previsao = {
-        "data": amanha.strftime("%Y-%m-%d"),
-        "score": score,
+    
+    # Dados Complementares
+    tw = estimate_tw(config["location"]["lat"], config["location"]["lon"], config)
+    lua_nome, lua_pct = get_moon_phase(weather["date"])
+    
+    # Heurística para espécie alvo
+    especie = "Achiga"
+    if tw < 13: especie = "Carpa"
+    elif tw > 20 and weather.get("wind_max", 0) < 15: especie = "Savel"
+    elif lua_pct > 80 or lua_pct < 20: especie = "Lucio"
+    
+    # Melhor horário
+    horario = "06:00-09:00" if score > 40 else "17:00-20:00"
+    
+    return {
+        "data": weather["date"],
+        "score": round(score, 1),
         "classe": classe,
         "tw": tw,
-        "chuva": meteo["chuva"],
-        "vento": meteo["vento"],
-        "lua_fase": lua_fase,
+        "vento": round(weather.get("wind_max", 0), 1),
+        "chuva": round(weather.get("rain", 0), 1),
+        "lua_fase": lua_nome,
         "lua_pct": lua_pct,
         "especie_alvo": especie,
-        "horario": horario,
-        "local": local,
-        "modelo": cfg.get("version", "3.1")
+        "horario": horario
     }
 
-    out_path = BASE_DIR / "data" / "previsao_amanha.json"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(previsao, f, indent=2, ensure_ascii=False)
-    logger.info(f"✅ Previsão exportada: {out_path} | Score: {score} ({classe})")
+def generate_fallback(config: dict) -> dict:
+    """Gera previsão segura quando tudo falha"""
+    amanha = (datetime.now() + timedelta(days=1)).date()
+    return {
+        "data": amanha.strftime("%Y-%m-%d"),
+        "score": 45.0, "classe": "MODERADO", "tw": 16.0,
+        "vento": 10.0, "chuva": 0.0,
+        "lua_fase": "Indeterminada", "lua_pct": 50,
+        "especie_alvo": "Achiga", "horario": "07:00-09:00"
+    }
+
+def main():
+    logger.info("🚀 Prever Amanhã v3.1 - Início")
+    
+    try:
+        config = load_config()
+        weather = get_tomorrow_weather(config["location"]["lat"], config["location"]["lon"])
+        
+        if weather is None:
+            logger.warning("⚠️ Sem dados meteo. A gerar fallback seguro.")
+            previsao = generate_fallback(config)
+        else:
+            previsao = run_inference(config, weather)
+            
+        # Exportar JSON
+        with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+            json.dump(previsao, f, indent=2, ensure_ascii=False)
+            
+        logger.info(f"✅ Previsão exportada: {OUTPUT_PATH}")
+        logger.info(f"📊 Resultado: Score {previsao['score']} | {previsao['classe']} | Espécie: {previsao['especie_alvo']}")
+        
+    except Exception as e:
+        logger.error(f"❌ Erro crítico na inferência: {e}")
+        # Tenta salvar fallback mesmo em caso de erro fatal
+        try:
+            with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+                json.dump(generate_fallback(config), f, indent=2)
+        except: pass
 
 if __name__ == "__main__":
     main()

@@ -21,6 +21,7 @@ logs/
 *.swo
 .DS_Store
 Thumbs.db
+0.4.2
 
 # 💾 3. Backups e Ficheiros de Sistema
 *.bak

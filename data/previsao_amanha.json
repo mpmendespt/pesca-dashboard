@@ -1,14 +1,12 @@
 {
-  "data": "2026-05-31",
-  "score": 45.0,
-  "classe": "BOM",
-  "tw": 25.3,
+  "data": "2026-06-01",
+  "score": 40.9,
+  "classe": "MODERADO",
+  "tw": 24.9,
+  "vento": 28.7,
   "chuva": 0.0,
-  "vento": 27.0,
   "lua_fase": "Lua Cheia",
-  "lua_pct": 100.0,
-  "especie_alvo": "Achiga",
-  "horario": "Final da tarde (17h-20h)",
-  "local": "Barragem de Castelo de Bode - Ilha do Lombo",
-  "modelo": "3.1"
+  "lua_pct": 100,
+  "especie_alvo": "Lucio",
+  "horario": "06:00-09:00"
 }
