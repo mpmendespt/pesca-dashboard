@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-streamlit_app.py v3.10 (Icon Fix & Secure Logout)
-Dashboard principal com autenticação v0.4.2 e ícones validados.
+streamlit_app.py v3.13 (PyArrow Safe & Logout Fix)
+Dashboard com autenticação v0.4.2, tratamento de tipos de dados e navegação segura.
 """
 import streamlit as st
 import streamlit_authenticator as stauth
@@ -10,6 +10,18 @@ from yaml.loader import SafeLoader
 import yaml
 from pathlib import Path
 import pandas as pd
+import warnings
+
+# Suprimir warnings de depreciação menores
+warnings.filterwarnings('ignore', category=UserWarning)
+warnings.filterwarnings('ignore', category=FutureWarning)
+
+st.set_page_config(
+    page_title="🎣 Previsão Pesca v3.1",
+    page_icon="",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # 🔑 Imports do projeto
 try:
@@ -21,8 +33,6 @@ try:
 except ImportError as e:
     st.error(f"❌ Erro crítico de importação: {e}")
     st.stop()
-
-st.set_page_config(page_title="🎣 Previsão Pesca v3.1", page_icon="🎣", layout="wide", initial_sidebar_state="expanded")
 
 # ==============================================================================
 # 1. AUTENTICAÇÃO & SESSÃO
@@ -37,6 +47,12 @@ if not CREDENTIALS_PATH.exists():
 with open(CREDENTIALS_PATH, "r", encoding="utf-8") as f:
     config_auth = yaml.load(f, Loader=SafeLoader)
 
+# 🔒 Integrar st.secrets para Cloud (fallback para local)
+try:
+    config_auth['cookie']['key'] = st.secrets["authenticator"]["cookie_key"]
+except Exception:
+    pass
+
 try:
     authenticator = stauth.Authenticate(
         config_auth['credentials'],
@@ -48,24 +64,32 @@ except Exception as e:
     st.error(f"❌ Falha ao iniciar autenticação: {e}")
     st.stop()
 
-# Verificar estado de autenticação
+# Estado inicial
 if "authentication_status" not in st.session_state:
     st.session_state["authentication_status"] = None
 
-# Se não estiver autenticado, mostrar formulário e parar
+# Se não autenticado, mostrar login e parar
 if st.session_state["authentication_status"] is not True:
     st.title("🔐 Acesso Restrito")
     st.info("Sistema de Previsão de Pesca - Rede Jazida v3.1")
     try:
-        authenticator.login(
-            location="main", 
+        result = authenticator.login(
+            location="main",
             fields={"Form name": "Login", "Username": "Utilizador", "Password": "Palavra-passe", "Login": "Entrar"}
         )
+        if result is not None:
+            login_status, controller, username = result
+            if login_status is True:
+                st.session_state["authentication_status"] = True
+                st.session_state["username"] = username
+                st.rerun()
+            elif login_status is False:
+                st.error("❌ Credenciais inválidas")
     except Exception as e:
         st.error(f"Erro no login: {e}")
-    st.stop()  # 🔒 Bloqueia acesso ao conteúdo se não estiver logado
+    st.stop()
 
-# Se chegou aqui, está autenticado
+# Autenticado: atualizar estado
 st.session_state["username"] = st.session_state.get("name", "Utilizador")
 
 # ==============================================================================
@@ -87,42 +111,36 @@ def safe_load():
 config, df_capturas, previsao, sqlite_sum, kpis = safe_load()
 
 # ==============================================================================
-# 3. INTERFACE & SIDEBAR
+# 3. SIDEBAR & LOGOUT (API v0.4.2 COMPATÍVEL)
 # ==============================================================================
 with st.sidebar:
-    st.title("🎣 Rede Jazida")
+    st.title(" Rede Jazida")
     st.caption("Barragem de Castelo de Bode")
     st.divider()
     st.write(f"👤 Olá, **{st.session_state['username']}**")
     
-    # ✅ LOGOUT SEGURO
-    if st.button("🚪 Sair / Logout", type="primary", width="stretch"):
-        try: authenticator.logout()
-        except: pass
-        st.session_state["authentication_status"] = None
-        st.session_state["username"] = None
-        st.rerun()
-        
-    st.divider()
+    # ✅ Logout gerido nativamente pelo authenticator
+    authenticator.logout("🚪 Sair / Logout", location="sidebar", key="logout_btn")
     
-    # ✅ NAVEGAÇÃO COM ÍCONES VÁLIDOS (1 caractere cada)
-    st.page_link("streamlit_app.py", label=" Painel", icon="🏠")
-    st.page_link("pages/2_📈_Histórico.py", label="📊 Histórico", icon="📊")
-    st.page_link("pages/3_🔮_Previsão.py", label="🔮 Previsão ML", icon="🔮")
-    st.page_link("pages/4_⚙️_Configurações.py", label="⚙️ Configurações", icon="⚙️")
+    st.divider()
+    # Navegação com caminhos exatos aos ficheiros reais
+    st.page_link("streamlit_app.py", label="🏠 Painel")
+    st.page_link("pages/2_📈_Histórico.py", label="📊 Histórico")
+    st.page_link("pages/3_🔮_Previsão.py", label="🔮 Previsão ML")
+    st.page_link("pages/4_⚙️_Configurações.py", label="⚙️ Configurações")
 
 # ==============================================================================
 # 4. CONTEÚDO PRINCIPAL
 # ==============================================================================
 st.title("🎣 Previsão de Pesca - Rede Jazida")
 
-# KPIs
-score = kpis.get("score_previsto", 0)
+# KPIs (garantir tipos numéricos)
+score = float(kpis.get("score_previsto", 0))
 classe = kpis.get("classe_prevista", "MODERADO")
 color = "red" if score < 20 else "orange" if score < 50 else "green"
 
 c1, c2, c3, c4 = st.columns(4)
-with c1: st.markdown(create_kpi_card("Score Previsto", f"{score}", "/100", color=color), unsafe_allow_html=True)
+with c1: st.markdown(create_kpi_card("Score Previsto", f"{int(score)}", "/100", color=color), unsafe_allow_html=True)
 with c2: st.markdown(create_kpi_card("Classificação", classe, "", color=color), unsafe_allow_html=True)
 with c3: st.markdown(create_kpi_card("Tw (Água)", f"{kpis.get('tw_prevista', '—')}", "°C", color="purple"), unsafe_allow_html=True)
 with c4: st.markdown(create_kpi_card("Vento", f"{kpis.get('vento_previsto', '—')}", "km/h", color="blue"), unsafe_allow_html=True)
@@ -130,8 +148,8 @@ with c4: st.markdown(create_kpi_card("Vento", f"{kpis.get('vento_previsto', '—
 k1, k2, k3, k4 = st.columns(4)
 with k1: st.markdown(create_kpi_card("Chuva", f"{kpis.get('chuva_prevista', '—')}", "mm", color="blue"), unsafe_allow_html=True)
 with k2: st.markdown(create_kpi_card("Lua", f"{kpis.get('lua_fase', '—')} ({kpis.get('lua_pct', '—')}%)", "", color="yellow"), unsafe_allow_html=True)
-with k3: st.markdown(create_kpi_card("Total Peixes", f"{kpis.get('total_peixes', 0)}", "un", color="green"), unsafe_allow_html=True)
-with k4: st.markdown(create_kpi_card("Total Peso", f"{kpis.get('total_kg', 0.0)}", "kg", color="green"), unsafe_allow_html=True)
+with k3: st.markdown(create_kpi_card("Total Peixes", int(kpis.get('total_peixes', 0)), " un", color="green"), unsafe_allow_html=True)
+with k4: st.markdown(create_kpi_card("Total Peso", f"{float(kpis.get('total_kg', 0.0)):.1f}", " kg", color="green"), unsafe_allow_html=True)
 
 st.divider()
 
@@ -141,9 +159,11 @@ with col_left:
     st.subheader("📈 Distribuição Histórica de Scores")
     if not df_capturas.empty and "sucesso_score" in df_capturas.columns:
         try:
-            fig_dist = plot_score_distribution_plotly(df_capturas["sucesso_score"].dropna())
-            # ✅ FIX: use_container_width → width="stretch"
-            st.plotly_chart(fig_dist, width="stretch")
+            # ✅ Garantir que o score é numérico antes de plotar
+            scores = pd.to_numeric(df_capturas["sucesso_score"].dropna(), errors='coerce')
+            if len(scores) > 0:
+                fig_dist = plot_score_distribution_plotly(scores)
+                st.plotly_chart(fig_dist, width="stretch")
         except Exception as e:
             st.warning(f"⚠️ Erro ao gerar gráfico: {e}")
     else:
@@ -166,6 +186,6 @@ with col_right:
         st.error("🤖 Modelo: Ficheiro .pkl não encontrado")
         
     if previsao and "data" in previsao:
-        st.success(f" Última Previsão: {previsao['data']}")
+        st.success(f"📅 Última Previsão: {previsao['data']}")
 
 st.caption("© 2026 Sistema de Previsão de Pesca v3.1 | Barragem de Castelo de Bode")

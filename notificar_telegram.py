@@ -23,11 +23,25 @@ logger = setup_pipeline_logger(name="notificar_telegram.py")  # Mude o 'name' po
 # Carrega .env se existir (para CLI/Task Scheduler)
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
+# Em notificar_telegram.py
+import os
+import streamlit as st
+
 def get_credentials():
+    # 1. Tenta ler do Streamlit Secrets (Cloud)
+    try:
+        token = st.secrets["telegram"]["bot_token"]
+        chat_id = st.secrets["telegram"]["chat_id"]
+        if token and chat_id:
+            return token, chat_id
+    except Exception:
+        pass # Fallback para local
+
+    # 2. Fallback para variáveis de ambiente (Local/Batch)
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    
     if not token or not chat_id:
-        logger.warning("⚠️ Credenciais Telegram ausentes. Notificação ignorada.")
         return None, None
     return token, chat_id
 

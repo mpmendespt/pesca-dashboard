@@ -1,18 +1,58 @@
-import streamlit as st
-
-# 🔐 GUARD DE AUTENTICAÇÃO (Impede acesso sem login)
-if not st.session_state.get("authentication_status"):
-    st.warning(" Acesso restrito. A sessão expirou ou não está autenticada.")
-    st.page_link("streamlit_app.py", label="🔑 Ir para Login", icon="🔑")
-    st.stop()
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+pages/3_🔮_Previsão.py - Previsão ML com PyArrow Safe
+"""
 import pandas as pd
+import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
 from src.data_loader import load_previsao_amanha, get_feature_importance, load_config
 from src.plots import create_kpi_card
 
-st.set_page_config(page_title="Previsão ML", page_icon="🔮", layout="wide")
+st.set_page_config(page_title="🔮 Previsão ML", page_icon="🔮", layout="wide")
 
+# ==============================================================================
+# FUNÇÃO DE LIMPEZA PARA PYARROW (Obrigatória)
+# ==============================================================================
+def sanitize_dataframe(df):
+    """
+    Remove colunas problemáticas ('Valor', 'Tipo', etc.) e converte 
+    tipos mistos para garantir compatibilidade com PyArrow/Streamlit.
+    """
+    if df is None or df.empty:
+        return df
+    
+    df_clean = df.copy()
+    
+    # 1. Remover colunas conhecidas por causar erros (case-insensitive)
+    bad_cols = [c for c in df_clean.columns if c.lower() in ['valor', 'tipo', 'unnamed', 'type', 'value']]
+    if bad_cols:
+        df_clean = df_clean.drop(columns=bad_cols)
+        
+    # 2. Converter colunas 'object' para numérico ou string pura
+    for col in df_clean.columns:
+        if df_clean[col].dtype == 'object':
+            try:
+                # Tenta converter para numérico primeiro
+                df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce')
+            except Exception:
+                # Se falhar, converte para string limpa
+                df_clean[col] = df_clean[col].astype(str).fillna('').replace(['nan', 'None', 'NaN'], '')
+                
+    return df_clean
+
+# ==============================================================================
+# 🔐 GUARD DE AUTENTICAÇÃO (Impede acesso sem login)
+# ==============================================================================
+if not st.session_state.get("authentication_status"):
+    st.warning("🔐 Acesso restrito. A sessão expirou ou não está autenticada.")
+    st.page_link("streamlit_app.py", label="🔑 Ir para Login", icon="🔑")
+    st.stop()
+
+# ==============================================================================
+# CONTEÚDO PRINCIPAL
+# ==============================================================================
 def main():
     st.title("🔮 Previsão ML para Amanhã")
     
@@ -43,12 +83,15 @@ def main():
         st.subheader("📊 O que influenciou esta previsão?")
         feat_data = get_feature_importance()
         
-        if feat_data and feat_data["feature_importances"]:
+        if feat_data and feat_data.get("feature_importances"):
             # Criar dataframe para plot
             df_imp = pd.DataFrame({
                 'Feature': feat_data["feature_names"],
                 'Importance': feat_data["feature_importances"]
             }).sort_values('Importance', ascending=True).tail(10)
+            
+            # ✅ FIX: Aplicar sanitize antes de usar no Streamlit/Plotly
+            df_imp = sanitize_dataframe(df_imp)
             
             fig = px.bar(df_imp, x='Importance', y='Feature', orientation='h',
                          title="Top 10 Variáveis Mais Importantes (Random Forest)",
@@ -69,7 +112,12 @@ def main():
             "Chuva Prevista": f"{previsao.get('chuva', 0)} mm",
             "Lua": f"{previsao.get('lua_fase', '?')} ({previsao.get('lua_pct', 0)}%)"
         }
-        st.table(pd.DataFrame(details.items(), columns=["Parâmetro", "Valor"]))
+        df_details = pd.DataFrame(details.items(), columns=["Parâmetro", "Valor"])
+        
+        # ✅ FIX: Aplicar sanitize à tabela também (boa prática)
+        df_details = sanitize_dataframe(df_details)
+        
+        st.table(df_details)
 
     with col_meta:
         st.subheader("ℹ️ Info do Modelo")
