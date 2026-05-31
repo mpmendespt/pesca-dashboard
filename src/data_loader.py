@@ -172,14 +172,35 @@ def load_sqlite_summary() -> dict:
 
 @st.cache_data(ttl=300)
 def get_feature_importance() -> dict | None:
+    """Carrega metadados do modelo e normaliza chaves para compatibilidade com o Dashboard."""
     meta_path = _resolve_path(DATA_DIR / "model_metadata.json", BASE_DIR / "model_metadata.json")
-    if not meta_path: return None
+    if not meta_path:
+        return None
     try:
         with open(meta_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
+            
+        # 🔑 Normalizar Features (compatível v3.1, v3.1.5 e v3.2)
+        features = meta.get("feature_names") or meta.get("features_used", [])
+        importances = meta.get("feature_importances") or meta.get("feature_importance", [])
+        
+        # Se o formato for lista de dicionários (v3.2), converter para listas paralelas
+        if importances and isinstance(importances[0], dict):
+            features = [d.get("feature", d.get("feature_name", "")) for d in importances]
+            importances = [d.get("importance", 0) for d in importances]
+            
+        # 🔑 Normalizar Métricas (trazer raiz para dentro de 'metrics' se necessário)
+        metrics = meta.get("metrics", {}).copy()
+        if "n_samples" not in metrics:
+            metrics["n_samples"] = meta.get("n_samples", 0)
+        if "r2" not in metrics:
+            metrics["r2"] = metrics.get("val_r2") or meta.get("cv_r2") or meta.get("cv_r2_mean", 0)
+            
         return {
-            "feature_names": meta.get("feature_names", []),
-            "feature_importances": meta.get("feature_importances", [])
+            "feature_names": features,
+            "feature_importances": importances,
+            "model_type": meta.get("model_type", "Desconhecido"),
+            "metrics": metrics
         }
     except Exception as e:
         logger.warning(f"⚠️ Erro ao carregar feature importance: {e}")

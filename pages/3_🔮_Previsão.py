@@ -83,23 +83,32 @@ def main():
         st.subheader("📊 O que influenciou esta previsão?")
         feat_data = get_feature_importance()
         
-        if feat_data and feat_data.get("feature_importances"):
-            # Criar dataframe para plot
-            df_imp = pd.DataFrame({
-                'Feature': feat_data["feature_names"],
-                'Importance': feat_data["feature_importances"]
-            }).sort_values('Importance', ascending=True).tail(10)
+        if feat_data:
+            # 🔑 Normalizar chaves (compatível com v3.1.5 e v3.2)
+            features = feat_data.get("feature_names") or feat_data.get("features_used", [])
+            importances = feat_data.get("feature_importances") or feat_data.get("feature_importance", [])
             
-            # ✅ FIX: Aplicar sanitize antes de usar no Streamlit/Plotly
-            df_imp = sanitize_dataframe(df_imp)
-            
-            fig = px.bar(df_imp, x='Importance', y='Feature', orientation='h',
-                         title="Top 10 Variáveis Mais Importantes (Random Forest)",
-                         labels={'Importance': 'Peso na Decisão', 'Feature': 'Variável'},
-                         color='Importance', color_continuous_scale='Viridis')
-            st.plotly_chart(fig, width="stretch")
+            # Se o formato for lista de dicionários (v3.2), converter para listas paralelas
+            if importances and isinstance(importances[0], dict):
+                features = [d.get("feature", d.get("feature_name", "")) for d in importances]
+                importances = [d.get("importance", 0) for d in importances]
+                
+            # ✅ Validação de segurança antes de criar o DataFrame
+            if features and importances and len(features) == len(importances):
+                df_imp = pd.DataFrame({
+                    'Feature': features,
+                    'Importance': importances
+                }).sort_values('Importance', ascending=True).tail(10)
+                
+                fig = px.bar(df_imp, x='Importance', y='Feature', orientation='h',
+                             title="Top 10 Variáveis Mais Importantes",
+                             labels={'Importance': 'Peso na Decisão', 'Feature': 'Variável'},
+                             color='Importance', color_continuous_scale='Viridis')
+                st.plotly_chart(fig, width="stretch")
+            else:
+                st.warning("⚠️ Metadados inconsistentes. Retreine o modelo para corrigir.")
         else:
-            st.warning("⚠️ Metadados do modelo não disponíveis. Retreine o modelo para ver a análise.")
+            st.warning("⚠️ Metadados do modelo não disponíveis.")
 
         # --- Tabela de Previsão Detalhada ---
         st.subheader("📋 Detalhes da Previsão")
@@ -121,17 +130,15 @@ def main():
 
     with col_meta:
         st.subheader("ℹ️ Info do Modelo")
-        meta = get_feature_importance()
-        if meta:
-            st.info(f"🤖 Modelo: {meta.get('model_type', 'N/A')}")
-            st.info(f"📚 Dados Treino: {meta.get('metrics', {}).get('n_samples', 0)} sessões")
-            st.info(f"📈 R² (Validação): {meta.get('metrics', {}).get('r2', 'N/A')}")
-        else:
-            st.info("Sem metadados.")
+        # Já está normalizado via get_feature_importance()
+        st.info(f"🤖 Modelo: {feat_data.get('model_type', 'N/A')}")
+        st.info(f"📚 Dados Treino: {feat_data.get('metrics', {}).get('n_samples', 0)} sessões")
+        r2_val = feat_data.get('metrics', {}).get('r2', 'N/A')
+        st.info(f"📈 R² (Validação): {r2_val if r2_val != 0 else '0.0 (Baseline)'}")
             
         st.divider()
         st.markdown("""
-        **Nota:** A previsão é gerada automaticamente todos os dias às 06:00 pelo Task Scheduler. 
+        **Nota:** A previsão é gerada automaticamente todos os dias às 18:50 pelo Task Scheduler. 
         O modelo utiliza dados de:
         - Temperatura da Água (Tw) estimada
         - Vento e Chuva (Open-Meteo)
