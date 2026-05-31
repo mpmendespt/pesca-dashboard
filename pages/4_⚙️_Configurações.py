@@ -53,16 +53,27 @@ def main():
     with col_a:
         st.markdown("**Sincronização de Dados**")
         st.caption("Força a cópia de `Weather5` → `data/`.")
-        if st.button("🔄 Sincronizar Agora", type="primary"):
-            with st.spinner("A sincronizar..."):
-                script_path = base_dir / "sync_dados_dashboard.py"
-                result = subprocess.run([sys.executable, str(script_path)], capture_output=True, text=True)
-                if result.returncode == 0:
-                    st.success("✅ Sincronização concluída!")
-                    st.code(result.stdout)
-                else:
-                    st.error("❌ Erro na sincronização.")
-                    st.code(result.stderr)
+        if st.button("🔄 Sincronizar Agora", type="primary", use_container_width=True):
+            with st.spinner("🔄 A sincronizar dados meteorológicos e hidrológicos..."):
+                try:
+                    # Tentar importar e correr o script de sync
+                    from src.sync import run_sync
+                    result = run_sync()  # Deve retornar dict com status
+                    
+                    if result.get("success"):
+                        st.toast("✅ Dados sincronizados com sucesso!", icon="✅")
+                        st.success(f"📦 {result.get('copied', 0)} ficheiros atualizados")
+                        # Forçar refresh da cache
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.warning(f"⚠️ {result.get('message', 'Sincronização parcial')}")
+                        
+                except ImportError:
+                    st.info("ℹ️ Sincronização automática indisponível na Cloud. Dados atualizados via API em tempo real.")
+                except Exception as e:
+                    st.error(f"❌ Erro na sincronização: {str(e)[:100]}")
+                    st.caption("💡 Na Cloud, os dados são obtidos diretamente das APIs quando a página carrega.")
 
     with col_b:
         st.markdown("**Limpeza de Cache**")

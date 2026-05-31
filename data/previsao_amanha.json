@@ -1,12 +1,25 @@
 {
-  "data": "2026-06-01",
-  "score": 40.9,
-  "classe": "MODERADO",
-  "tw": 24.9,
-  "vento": 28.7,
-  "chuva": 0.0,
-  "lua_fase": "Lua Cheia",
-  "lua_pct": 100,
-  "especie_alvo": "Lucio",
-  "horario": "06:00-09:00"
+  "data_alvo": "2026-06-01",
+  "score_previsto": 15.4,
+  "classificacao": "FRACO",
+  "especie_recomendada": "Achiga",
+  "melhor_horario": "Manhã (08h-11h)",
+  "nota_especie": "ativo com água aquecida",
+  "alertas": [],
+  "condicoes_chave": {
+    "Tw": 24.7,
+    "Temp_Ar": 21.8,
+    "Chuva_24h": 0.0,
+    "Humidade": 72.0,
+    "Lua": "Cheia (100.0%)",
+    "Vento_Max": 27.5,
+    "Ta_Media_5d": 24.2
+  },
+  "norm_params": {
+    "max_kg": 4.92,
+    "max_qtd": 3.0,
+    "n_sessoes": 12,
+    "data_calibracao": "2026-05-31"
+  },
+  "nota_ml": "Modelo v3.1 | n_treino=12 | max_kg=4.92 kg | Use como referência complementar."
 }
