@@ -1,25 +1,25 @@
 {
-  "data_alvo": "2026-06-01",
-  "score_previsto": 15.4,
-  "classificacao": "FRACO",
-  "especie_recomendada": "Achiga",
-  "melhor_horario": "Manhã (08h-11h)",
-  "nota_especie": "ativo com água aquecida",
+  "data_alvo": "2026-06-03",
+  "score_previsto": 30.0,
+  "classificacao": "MODERADO",
+  "especie_recomendada": "Lucio",
+  "melhor_horario": "Final da tarde (17h-20h)",
+  "nota_especie": "condicoes favoraveis",
   "alertas": [],
   "condicoes_chave": {
-    "Tw": 24.7,
-    "Temp_Ar": 21.8,
+    "Tw": 23.1,
+    "Temp_Ar": 19.8,
     "Chuva_24h": 0.0,
-    "Humidade": 72.0,
-    "Lua": "Cheia (100.0%)",
-    "Vento_Max": 27.5,
-    "Ta_Media_5d": 24.2
+    "Humidade": 70.1,
+    "Lua": "Cheia (92.9%)",
+    "Vento_Max": 26.7,
+    "Ta_Media_5d": 22.0
   },
   "norm_params": {
     "max_kg": 4.92,
     "max_qtd": 3.0,
-    "n_sessoes": 12,
-    "data_calibracao": "2026-05-31"
+    "n_sessoes": 10,
+    "data_calibracao": "2026-06-02"
   },
-  "nota_ml": "Modelo v3.1 | n_treino=12 | max_kg=4.92 kg | Use como referência complementar."
+  "nota_ml": "Modelo v3.1 | Use como referencia complementar."
 }
