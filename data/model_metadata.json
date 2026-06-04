@@ -1,8 +1,8 @@
 {
   "model_type": "Ridge(Fallback)",
   "version": "3.1.5",
-  "trained_at": "2026-06-02T23:36:09.300774",
-  "n_samples": 12,
+  "trained_at": "2026-06-04T21:05:23.087995",
+  "n_samples": 13,
   "cv_strategy": "LeaveOneOut",
   "cv_r2": 0.0,
   "features_used": [
@@ -11,8 +11,8 @@
     "Fase_Ciclo"
   ],
   "feature_importances": [
-    0.5571,
-    0.0374,
-    0.4054
+    0.8562,
+    0.0249,
+    0.119
   ]
 }
