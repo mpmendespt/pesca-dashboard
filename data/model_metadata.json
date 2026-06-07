@@ -1,18 +1,18 @@
 {
-  "model_type": "Ridge(Fallback)",
+  "model_type": "Ridge(alpha=1.0)",
   "version": "3.1.5",
-  "trained_at": "2026-06-06T22:08:54.417817",
-  "n_samples": 14,
-  "cv_strategy": "LeaveOneOut",
-  "cv_r2": 0.0,
+  "trained_at": "2026-06-07T19:47:04.834556",
+  "n_samples": 15,
+  "cv_strategy": "KFold(3)",
+  "cv_r2": -7.3653,
   "features_used": [
     "Mes",
     "Dia_Ano",
     "Fase_Ciclo"
   ],
   "feature_importances": [
-    0.7342,
-    0.0318,
-    0.2339
+    0.803,
+    0.0217,
+    0.1752
   ]
 }

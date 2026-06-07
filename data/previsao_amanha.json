@@ -1,5 +1,5 @@
 {
-  "data_alvo": "2026-06-07",
+  "data_alvo": "2026-06-08",
   "score_previsto": 30.0,
   "classificacao": "MODERADO",
   "especie_recomendada": "Achiga",
@@ -7,19 +7,19 @@
   "nota_especie": "condicoes favoraveis",
   "alertas": [],
   "condicoes_chave": {
-    "Tw": 21.0,
-    "Temp_Ar": 20.5,
+    "Tw": 20.9,
+    "Temp_Ar": 19.5,
     "Chuva_24h": 0.0,
-    "Humidade": 65.7,
-    "Lua": "Minguante I (59.1%)",
-    "Vento_Max": 25.6,
-    "Ta_Media_5d": 19.0
+    "Humidade": 67.7,
+    "Lua": "Q. Minguante (48.5%)",
+    "Vento_Max": 29.5,
+    "Ta_Media_5d": 18.9
   },
   "norm_params": {
     "max_kg": 4.92,
     "max_qtd": 3.0,
     "n_sessoes": 10,
-    "data_calibracao": "2026-06-06"
+    "data_calibracao": "2026-06-07"
   },
   "nota_ml": "Modelo v3.1 | Use como referencia complementar."
 }
