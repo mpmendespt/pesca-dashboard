@@ -1,6 +1,6 @@
 {
   "data_alvo": "2026-08-15",
-  "score_previsto": 40.0,
+  "score_previsto": 39.9,
   "classificacao": "MODERADO",
   "especie_recomendada": "Lucio",
   "melhor_horario": "Final da tarde (17h-20h)",
@@ -8,11 +8,11 @@
   "alertas": [],
   "condicoes_chave": {
     "Tw": 25.1,
-    "Temp_Ar": 25.9,
+    "Temp_Ar": 25.7,
     "Chuva_24h": 0.0,
-    "Humidade": 75.0,
+    "Humidade": 73.2,
     "Lua": "Nova (3.2%)",
-    "Vento_Max": 18.4,
+    "Vento_Max": 18.8,
     "Ta_Media_5d": 24.8
   },
   "norm_params": {

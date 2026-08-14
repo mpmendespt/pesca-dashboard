@@ -33,6 +33,9 @@ __pycache__/
 *.so
 .Python
 
+# 
+docs/
+
 # 📊 4. Dados Derivados (Gerados automaticamente)
 # Estes ficheiros podem ser recriados a partir do código e do CSV base
 Capturas_Mensais_Agregadas.xlsx
@@ -60,3 +63,6 @@ sanitize_config.py
 limpar_logs_antigos.py
 # ###########
 /previsao_7dias.json
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+graft/

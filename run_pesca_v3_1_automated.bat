@@ -12,6 +12,12 @@ set "OMP_NUM_THREADS=1"
 set "PYTHONUNBUFFERED=1"
 set "PYTHONIOENCODING=utf-8"
 
+:: Log rotation: remove logs older than 30 days
+set "LOGS_DIR=%~dp0logs"
+if exist "%LOGS_DIR%" (
+    forfiles /p "%LOGS_DIR%" /s /m "pipeline_*.log" /d -30 /c "cmd /c del @path"
+)
+
 :: Carregar variaveis de ambiente (.env) para Telegram/Scripts
 if exist "%~dp0.env" (
     for /f "tokens=1,* delims==" %%a in ('findstr /v "^[#;]" "%~dp0.env"') do (
@@ -25,6 +31,11 @@ if errorlevel 1 (
     echo ERRO: Falha ao ativar ambiente Conda Pesquisas
     exit /b 1
 )
+
+
+:: COPIA Capturas.csv PARA GARANTIR CONFIGURACAO UNICA
+copy /Y "D:\_WORK_\work_python_and_R\___WORK5___\Weather5\Capturas.csv" "D:\_WORK_\work_python_and_R\___WORK___\Previsao_Pesca\Capturas.csv"
+
 
 cd /d "%~dp0"
 

@@ -534,7 +534,37 @@ def gerar_snapshot_diario():
 
     try:
         # ── Meteorologia ──────────────────────────────────────────────────────
+        # Get data for today and previous 3 days for accurate chuva_72h calculation
+        three_days_ago = (hoje - timedelta(days=3)).strftime("%Y-%m-%d")
         row_h, sun = fetch_meteo_archive(ds)
+
+        # Calculate actual chuva_72h: sum of precipitation from previous 3 days
+        chuva_72h_value = 0.0
+        try:
+            # Fetch archive data for the 3-day period
+            archive_data = requests.get(
+                "https://archive-api.open-meteo.com/v1/archive",
+                params={
+                    "latitude":   CONFIG["location"]["lat"],
+                    "longitude":  CONFIG["location"]["lon"],
+                    "start_date": three_days_ago,
+                    "end_date":   (hoje - timedelta(days=1)).strftime("%Y-%m-%d"),  # yesterday
+                    "hourly": ["precipitation"],
+                    "timezone": CONFIG["location"]["timezone"]
+                },
+                timeout=CONFIG["api"]["timeout_s"]
+            )
+            archive_data.raise_for_status()
+            archive_json = archive_data.json()
+            if "hourly" in archive_json and "precipitation" in archive_json["hourly"]:
+                # Sum all precipitation values from the period
+                precip_values = [p for p in archive_json["hourly"]["precipitation"] if p is not None]
+                chuva_72h_value = round(sum(precip_values), 1)
+        except Exception as e:
+            logger.warning(f"Could not calculate accurate chuva_72h, falling back to proxy: {e}")
+            # Fallback to the old proxy method if API fails
+            chuva_72h_value = float(row_h["precipitation"]) * 3
+
         ta = round(float(row_h["temperature_2m"]), 1)
         tw = round(
             CONFIG["water_temp_model"]["tw_slope"] * ta
@@ -556,8 +586,8 @@ def gerar_snapshot_diario():
                 float(row_h["surface_pressure"]),
                 float(row_h["relative_humidity_2m"]),
                 float(row_h["precipitation"]),          # chuva_1h
-                float(row_h["precipitation"]),          # chuva_24h (proxy)
-                float(row_h["precipitation"]) * 3,      # chuva_72h (proxy)
+                float(row_h["precipitation"]),          # chuva_24h (proxy - same as 1h for daily snapshot)
+                chuva_72h_value,                        # chuva_72h (actual 3-day sum or fallback)
                 float(row_h["cloudcover"]),
                 str(mes),
                 _ESTACAO_MAP[mes],
@@ -577,8 +607,7 @@ def gerar_snapshot_diario():
             "SELECT nivel_barragem FROM hidro WHERE datetime LIKE ?",
             (f"{prev_ds}%",),
         ).fetchone()
-        delta_24h = (round(hidro["nivel"] - prev_row[0], 2)
-                     if prev_row and prev_row[0] else 0.0)
+        delta_24h = round(hidro["nivel"] - prev_row[0], 2) if prev_row and prev_row[0] is not None else None
 
         c.execute(
             """INSERT INTO hidro (

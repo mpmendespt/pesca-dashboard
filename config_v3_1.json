@@ -43,7 +43,7 @@
     "capturas_csv": "Capturas.csv",
     "historico_csv": "historico_temperaturas_castelo_bode.csv",
     "pdf_prefix": "Previsao_Pesca_v3.1",
-    "model_pkl": "modelo_pesca_v3_robusto.pkl",
+    "model_pkl": "data/modelo_pesca_v3_robusto.pkl",
     "log_file": "previsao_pesca_v3.1.log"
   },
   "logging": {
