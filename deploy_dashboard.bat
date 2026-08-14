@@ -57,7 +57,7 @@ git add data\historico_temperaturas_castelo_bode.csv   2>nul
 :: Usar FOR para adicionar cada PDF individualmente
 if exist "data\pdfs\" (
     for %%f in ("data\pdfs\Previsao_Pesca_*.pdf") do (
-        git add "%%f" 2>nul
+        git add -f "%%f" 2>nul
         echo   Adicionado: %%~nxf
     )
 ) else (
