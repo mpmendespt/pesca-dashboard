@@ -3,14 +3,17 @@
   "project": "Previsão de Pesca - Rede Jazida",
   "location": {
     "name": "Barragem de Castelo de Bode - Ilha do Lombo",
-    "lat": 39.6500,
-    "lon": -8.3500,
+    "lat": 39.65,
+    "lon": -8.35,
     "timezone": "Europe/Lisbon"
   },
   "fishing_calendar": {
     "start_date": "2026-04-06",
-    "interruptions": [],
-    "notes": "Dias sem atividade por condições adversas, indisponibilidade ou manutenção de material. Quando houver interrupções, adicione as datas no formato 'YYYY-MM-DD'."
+    "interruptions": [
+		{"from": "2026-06-10", "to": "2026-06-29"},
+		{"from": "2026-07-09", "to": "2026-08-02"}
+	],
+    "notes": "Formatos aceites em interruptions: dia unico '\"YYYY-MM-DD\"', periodo fechado '{\"from\": \"YYYY-MM-DD\", \"to\": \"YYYY-MM-DD\"}', periodo aberto ate hoje '{\"from\": \"YYYY-MM-DD\"}'"
   },
   "thresholds": {
     "limiar_frio": 11,
@@ -22,7 +25,7 @@
     "lua_cheia_janela": 2
   },
   "water_temp_model": {
-    "tw_slope": 0.70,
+    "tw_slope": 0.7,
     "tw_intercept": 7.71,
     "tw_media_dias": 5
   },

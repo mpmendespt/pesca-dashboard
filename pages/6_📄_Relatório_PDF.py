@@ -85,8 +85,10 @@ def main():
 
     # ── Outros PDFs disponíveis (deduplicados por nome) ─────────────────────
     base_dir = Path(__file__).resolve().parent.parent
+    # Procurar em data/pdfs/ primeiro, depois fallback para data/ e raiz (legacy)
     _candidatos = (
-        list((base_dir / "data").glob("Previsao_Pesca_*.pdf"))
+        list((base_dir / "data" / "pdfs").glob("Previsao_Pesca_*.pdf"))
+        + list((base_dir / "data").glob("Previsao_Pesca_*.pdf"))
         + list(base_dir.glob("Previsao_Pesca_*.pdf"))
     )
     _vistos: dict = {}

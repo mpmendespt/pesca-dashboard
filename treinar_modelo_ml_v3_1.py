@@ -1,118 +1,66 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-treinar_modelo_ml_v3_1.py - ML Trainer v3.0 (Otimizado para n<15)
-Corrige R² negativo, suprime avisos Streamlit e adiciona fallback inteligente.
-"""
-import warnings
-warnings.filterwarnings('ignore')  # Suprime avisos de cache fora do Streamlit
-
-import pandas as pd
-import numpy as np
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import KFold, cross_val_score
-import json
-import logging
-from pathlib import Path
+"""TREINO ML v3.1 - Robusto, ignora interrupções, get_dummies estável"""
+import os, sqlite3, logging, pickle, warnings
+import pandas as pd, numpy as np
 from datetime import datetime
-import sys
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import r2_score, mean_squared_error
+from config_loader import CONFIG
 
-sys.path.append(str(Path(__file__).parent))
-from src.scoring_engine import calculate_fishing_score
-from src.data_loader import load_capturas
+warnings.filterwarnings('ignore')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
+logger = logging.getLogger(__name__)
 
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-logger = logging.getLogger("ml_trainer")
+CAT_COLS = ['estacao', 'dia_semana', 'fase_lua']
 
-BASE_DIR = Path(__file__).resolve().parent
-MODEL_PATH = BASE_DIR / "data" / "modelo_pesca_v3_robusto.pkl"
-META_PATH  = BASE_DIR / "data" / "model_metadata.json"
+def treinar():
+    logger.info("🚀 Pipeline ML v3.1 | Ignorando dias de interrupção...")
+    conn = sqlite3.connect(CONFIG["paths"]["db_sqlite"])
+    query = """
+        SELECT m.datetime, m.temp_ar, m.temp_agua, m.vento_kmh, m.pressao, m.humidade,
+               m.chuva_24h, m.nuvens, m.hora, h.nivel_barragem, h.delta_24h as delta_nivel,
+               l.moon_illumination, m.estacao, m.dia_semana, l.fase_lua, c.sucesso_score
+        FROM meteo m
+        JOIN hidro h ON m.datetime = h.datetime
+        JOIN lunar l ON m.datetime = l.datetime
+        LEFT JOIN capturas c ON DATE(c.datetime) = DATE(m.datetime)
+    """
+    df = pd.read_sql(query, conn)
+    conn.close()
 
-def prepare_features_and_targets(df_capturas):
-    if df_capturas.empty:
-        return None, None, None
-    df = df_capturas.copy()
-    df['Mes'] = df['Timestamp'].dt.month
-    df['Dia_Ano'] = df['Timestamp'].dt.dayofyear
-    # Proxy de ciclo lunar (0 = Nova, 1 = Cheia)
-    df['Fase_Ciclo'] = np.sin(df['Dia_Ano'] * (2 * np.pi / 29.5))
-    targets = calculate_fishing_score(df)
-    df_clean = df.dropna()
-    targets_clean = targets[:len(df_clean)]
-    features = df_clean[['Mes', 'Dia_Ano', 'Fase_Ciclo']].values
-    return features, targets_clean, df_clean[['Mes', 'Dia_Ano', 'Fase_Ciclo']]
-
-def main():
-    logger.info("🚀 Início Treino Modelo ML v3.1")
-    df_capturas = load_capturas()
-    n_sessions = len(df_capturas)
+    # Sanitização & Filtro de Interrupções
+    num_cols = ['temp_ar','temp_agua','vento_kmh','pressao','humidade','chuva_24h','nuvens',
+                'hora','nivel_barragem','delta_nivel','moon_illumination','sucesso_score']
+    for c in num_cols: df[c] = pd.to_numeric(df[c], errors='coerce')
+    df['sucesso_score'] = df['sucesso_score'].fillna(0.0)
     
-    if n_sessions < 5:
-        logger.warning("⚠️ Dados insuficientes (<5 sessões). A gerar modelo de fallback.")
-        return
+    # Ignora dias de interrupcao (set de dates — suporta dias simples e periodos)
+    df['dia_obj'] = pd.to_datetime(df['datetime']).dt.date
+    interr = CONFIG["fishing_calendar"]["interruptions"]  # set[date] expandido
+    df = df[~df['dia_obj'].isin(interr)].drop(columns=['dia_obj'])
+    df = df.dropna(subset=['temp_ar']) # Remove meteo corrompido/faltante
 
-    features, targets, df_feat_names = prepare_features_and_targets(df_capturas)
-    if features is None or len(features) == 0: return
+    if len(df) < 4:
+        return logger.warning(f"⚠️ Dataset insuficiente após filtragem: {len(df)} registos.")
 
-    # Configuração adaptativa
-    k_folds = 3 if n_sessions < 15 else 5
-    kf = KFold(n_splits=k_folds, shuffle=True, random_state=42)
+    y = df['sucesso_score']
+    X = df.drop(columns=['datetime', 'sucesso_score'])
 
-    # Modelo principal: RF simplificado para poucos dados
-    model = RandomForestRegressor(
-        n_estimators=20, max_depth=2, min_samples_leaf=2,
-        random_state=42
-    )
+    # ✅ Codificação estável (evita bugs do sklearn)
+    X_enc = pd.get_dummies(X, columns=CAT_COLS, drop_first=False)
+    feature_names = X_enc.columns.tolist()
 
-    logger.info(f"📊 Dados: {n_sessions} sessões. K-Fold: k={k_folds}")
-    cv_scores = cross_val_score(model, features, targets, cv=kf, scoring='r2')
-    r2_mean = cv_scores.mean()
-    logger.info(f"✅ R² Médio (Validação): {r2_mean:.2f} (±{cv_scores.std():.2f})")
+    model = RandomForestRegressor(n_estimators=150, max_depth=8, random_state=42, n_jobs=-1)
+    model.fit(X_enc, y)
 
-    # Fallback se R² for muito negativo (modelo não aprendeu padrões reais)
-    if r2_mean < -0.5:
-        logger.warning("🔄 RF instável para n<15. A usar Regressão Linear como fallback estável.")
-        model = LinearRegression()
-        cv_scores = cross_val_score(model, features, targets, cv=kf, scoring='r2')
-        r2_mean = cv_scores.mean()
-        logger.info(f"✅ R² Linear: {r2_mean:.2f}")
+    y_pred = model.predict(X_enc)
+    r2 = r2_score(y, y_pred)
+    logger.info(f"📊 Treino v3.1 concluído: R²={r2:.3f} | RMSE={np.sqrt(mean_squared_error(y,y_pred)):.2f} | n={len(df)}")
 
-    # Treino final com 100% dos dados
-    logger.info("🏋️ Treinando modelo final com 100% dos dados...")
-    model.fit(features, targets)
-
-    # Feature Importance (compatível com RF e Linear)
-    if hasattr(model, 'feature_importances_'):
-        importances = model.feature_importances_
-    else:
-        importances = np.abs(model.coef_) / np.sum(np.abs(model.coef_))
-
-    feature_names = df_feat_names.columns.tolist()
-    sorted_idx = np.argsort(importances)[::-1]
-    logger.info("📈 Variáveis mais importantes:")
-    for idx in sorted_idx:
-        logger.info(f"   - {feature_names[idx]}: {importances[idx]:.2%}")
-
-    # Salvar Modelo e Metadados
-    import joblib
-    joblib.dump(model, MODEL_PATH)
-    
-    metadata = {
-        "model_type": type(model).__name__,
-        "trained_at": datetime.now().isoformat(),
-        "n_samples": n_sessions,
-        "k_folds_used": k_folds,
-        "metrics": {"r2_mean": round(float(r2_mean), 3)},
-        "feature_names": feature_names,
-        "feature_importances": [round(float(i), 4) for i in importances]
-    }
-    
-    with open(META_PATH, "w", encoding="utf-8") as f:
-        json.dump(metadata, f, indent=2)
-        
-    logger.info(f"💾 Modelo salvo em: {MODEL_PATH}")
-    logger.info(f"📄 Metadados salvos em: {META_PATH}")
+    with open(CONFIG["paths"]["model_pkl"], 'wb') as f:
+        pickle.dump({'model': model, 'feature_names': feature_names, 'date': datetime.now().isoformat()}, f)
+    logger.info(f"✅ Modelo guardado em {CONFIG['paths']['model_pkl']}")
 
 if __name__ == "__main__":
-    main()
+    treinar()

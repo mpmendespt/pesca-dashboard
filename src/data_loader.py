@@ -105,24 +105,69 @@ def load_config() -> dict:
 
 # ── Calendário de pesca ───────────────────────────────────────────────────────
 
-def fishing_calendar_days(cfg: dict = None) -> list[date]:
+def _expandir_interruptions(raw_list: list) -> set:
     """
-    Devolve lista ordenada de todos os dias de pesca válidos:
+    Expande interruptions para set de dates.
+    Delega em config_loader.expandir_interruptions se disponivel,
+    caso contrario implementa a mesma logica localmente.
+
+    Formatos aceites:
+      - "YYYY-MM-DD"                               : dia unico
+      - {"from": "YYYY-MM-DD", "to": "YYYY-MM-DD"}: periodo fechado
+      - {"from": "YYYY-MM-DD"}                     : periodo aberto (ate hoje)
+      - date object                                 : compatibilidade legada
+    """
+    # Tentar importar do config_loader (fonte da verdade)
+    try:
+        from config_loader import expandir_interruptions
+        return expandir_interruptions(raw_list)
+    except ImportError:
+        pass
+
+    hoje = date.today()
+    resultado = set()
+    for item in raw_list:
+        if isinstance(item, date):
+            resultado.add(item)
+        elif isinstance(item, str):
+            try:
+                resultado.add(datetime.strptime(item.strip(), "%Y-%m-%d").date())
+            except ValueError:
+                pass
+        elif isinstance(item, dict):
+            from_raw = item.get("from", "").strip()
+            to_raw   = item.get("to",   "").strip()
+            if not from_raw:
+                continue
+            try:
+                d_from = datetime.strptime(from_raw, "%Y-%m-%d").date()
+                d_to   = datetime.strptime(to_raw,   "%Y-%m-%d").date() if to_raw else hoje
+                if d_from > d_to:
+                    d_from, d_to = d_to, d_from
+                current = d_from
+                while current <= d_to:
+                    resultado.add(current)
+                    current += timedelta(days=1)
+            except ValueError:
+                pass
+    return resultado
+
+
+def fishing_calendar_days(cfg: dict = None) -> list:
+    """
+    Devolve lista ordenada de todos os dias de pesca validos:
       - A partir de fishing_calendar.start_date (inclusive)
-      - Até hoje (inclusive)
+      - Ate hoje (inclusive)
       - Excluindo os dias em fishing_calendar.interruptions
 
-    Regra de negócio:
-      O período de pesca decorre continuamente desde start_date.
-      Só são excluídos dias explicitamente listados em interruptions
-      (condições adversas, indisponibilidade, manutenção de material).
+    Suporta interruptions como dias simples ou periodos {from, to}.
     """
     if cfg is None:
         cfg = load_config()
 
     cal = cfg.get("fishing_calendar", {})
 
-    # start_date
+    # start_date — aceita str ou date
     start_raw = cal.get("start_date", "")
     if isinstance(start_raw, str):
         try:
@@ -131,19 +176,12 @@ def fishing_calendar_days(cfg: dict = None) -> list[date]:
             logger.warning(f"start_date invalido: {start_raw!r} — usando hoje")
             start = date.today()
     else:
-        start = start_raw  # já é date
+        start = start_raw
 
-    # interruptions
-    interruptions_raw = cal.get("interruptions", [])
-    interruptions: set[date] = set()
-    for d in interruptions_raw:
-        if isinstance(d, str):
-            try:
-                interruptions.add(datetime.strptime(d.strip(), "%Y-%m-%d").date())
-            except ValueError:
-                logger.warning(f"Data de interrupcao invalida: {d!r}")
-        elif isinstance(d, date):
-            interruptions.add(d)
+    # interruptions — expandir com suporte a periodos
+    interruptions = _expandir_interruptions(
+        cal.get("interruptions", [])
+    )
 
     today = date.today()
     if start > today:
@@ -157,14 +195,14 @@ def fishing_calendar_days(cfg: dict = None) -> list[date]:
         current += timedelta(days=1)
 
     logger.debug(
-        f"Calendario de pesca: {len(dias)} dias validos "
-        f"({start} a {today}, {len(interruptions)} interrupcoes)"
+        f"Calendario: {len(dias)} dias validos "
+        f"({start} a {today}, {len(interruptions)} dias excluidos)"
     )
     return dias
 
 
 def is_fishing_day(d: date = None, cfg: dict = None) -> bool:
-    """Verifica se um dia especifico é dia de pesca valido."""
+    """Verifica se um dia especifico e dia de pesca valido."""
     if d is None:
         d = date.today()
     if cfg is None:
@@ -183,17 +221,8 @@ def is_fishing_day(d: date = None, cfg: dict = None) -> bool:
     if d < start:
         return False
 
-    interruptions_raw = cal.get("interruptions", [])
-    for raw in interruptions_raw:
-        if isinstance(raw, str):
-            try:
-                if datetime.strptime(raw.strip(), "%Y-%m-%d").date() == d:
-                    return False
-            except ValueError:
-                pass
-        elif raw == d:
-            return False
-    return True
+    interruptions = _expandir_interruptions(cal.get("interruptions", []))
+    return d not in interruptions
 
 
 # ── Capturas ──────────────────────────────────────────────────────────────────
@@ -386,11 +415,15 @@ def load_previsao_7dias() -> dict:
 
 def load_ultimo_pdf() -> Path:
     """
-    Devolve o Path do PDF mais recente, deduplicado por nome entre
-    data/ e raiz do projecto. Devolve None se nao existir nenhum.
+    Devolve o Path do PDF mais recente em data/pdfs/.
+    Fallback para data/ e raiz para compatibilidade com versoes anteriores.
+    Devolve None se nao existir nenhum.
     """
+    PDF_DIR = DATA_DIR / "pdfs"
+    # Prioridade: data/pdfs/ -> data/ -> raiz (fallback legacy)
     candidatos = (
-        list(DATA_DIR.glob("Previsao_Pesca_*.pdf"))
+        list(PDF_DIR.glob("Previsao_Pesca_*.pdf"))
+        + list(DATA_DIR.glob("Previsao_Pesca_*.pdf"))
         + list(BASE_DIR.glob("Previsao_Pesca_*.pdf"))
     )
     vistos: dict[str, Path] = {}

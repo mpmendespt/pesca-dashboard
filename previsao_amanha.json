@@ -1,27 +1,25 @@
 {
-  "data_alvo": "2026-05-30",
-  "score_previsto": 9.7,
-  "classificacao": "FRACO",
-  "especie_recomendada": "Savel",
+  "data_alvo": "2026-08-15",
+  "score_previsto": 40.0,
+  "classificacao": "MODERADO",
+  "especie_recomendada": "Lucio",
   "melhor_horario": "Final da tarde (17h-20h)",
-  "nota_especie": "condições fracas",
-  "alertas": [
-    "Score baixo — condições desfavoráveis"
-  ],
+  "nota_especie": "condicoes favoraveis",
+  "alertas": [],
   "condicoes_chave": {
     "Tw": 25.1,
-    "Temp_Ar": 22.3,
+    "Temp_Ar": 25.9,
     "Chuva_24h": 0.0,
-    "Humidade": 72.0,
-    "Lua": "Crescente Fim (97.7%)",
-    "Vento_Max": 24.2,
+    "Humidade": 75.0,
+    "Lua": "Nova (3.2%)",
+    "Vento_Max": 18.4,
     "Ta_Media_5d": 24.8
   },
   "norm_params": {
     "max_kg": 4.92,
     "max_qtd": 3.0,
     "n_sessoes": 10,
-    "data_calibracao": "2026-05-29"
+    "data_calibracao": "2026-08-14"
   },
-  "nota_ml": "Modelo v3.1 | n_treino=11 | max_kg=4.92 kg | Use como referência complementar."
+  "nota_ml": "Modelo v3.1 | Use como referencia complementar."
 }

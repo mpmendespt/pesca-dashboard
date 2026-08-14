@@ -1,130 +1,264 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-notificar_telegram.py v3.2 (Rich Format)
+notificar_telegram.py v3.3
 Lê previsao_amanha.json e envia alerta formatado para o Telegram.
-Compatível com Session 0, variáveis de ambiente, e fallback seguro.
+
+Compatível com AMBOS os formatos de JSON:
+  Formato A (prever_amanha_v3_1.py actual):
+    score_previsto, data_alvo, classificacao, especie_recomendada,
+    melhor_horario, condicoes_chave.{Tw, Chuva_24h, Vento_Max, Lua}, alertas
+
+  Formato B (prever_amanha legacy / fallback):
+    score, data, classe, especie_alvo, horario,
+    tw, chuva, vento, lua_fase, lua_pct
+
+Credenciais via .env ou variáveis de ambiente:
+  TELEGRAM_BOT_TOKEN
+  TELEGRAM_CHAT_ID
 """
-import os, sys, json, logging, requests
+import os, json, logging, requests
 from pathlib import Path
 from dotenv import load_dotenv
-# No topo de cada script (após imports)
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from src.logging_setup import setup_pipeline_logger
 
-logger = setup_pipeline_logger(name="notificar_telegram.py")  # Mude o 'name' por script se quiser
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)-8s | %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger("telegram_notifier")
 
-# logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(message)s',
-                    # handlers=[logging.StreamHandler(sys.stdout)])
-# logger = logging.getLogger("telegram_notifier")
-
-# Carrega .env se existir (para CLI/Task Scheduler)
+# Carregar .env se existir (para CLI / Task Scheduler)
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-# Em notificar_telegram.py
-import os
-import streamlit as st
+# Caminhos possíveis do JSON (raiz e data/)
+_BASE = Path(__file__).resolve().parent
+JSON_PATHS = [
+    _BASE / "previsao_amanha.json",
+    _BASE / "data" / "previsao_amanha.json",
+]
 
-def get_credentials():
-    # 1. Tenta ler do Streamlit Secrets (Cloud)
+# Limiares (devem coincidir com config_v3_1.json)
+_LIM_SCORE = 20
+_LIM_VENTO = 35
+_LIM_CHUVA = 15
+
+
+# ── Credenciais ───────────────────────────────────────────────────────────────
+
+def get_credentials() -> tuple:
+    """
+    Prioridade: st.secrets (Cloud) → .env / variáveis de ambiente.
+    Devolve (token, chat_id) ou (None, None).
+    """
     try:
-        token = st.secrets["telegram"]["bot_token"]
+        import streamlit as st
+        token   = st.secrets["telegram"]["bot_token"]
         chat_id = st.secrets["telegram"]["chat_id"]
         if token and chat_id:
-            return token, chat_id
+            return str(token), str(chat_id)
     except Exception:
-        pass # Fallback para local
+        pass
 
-    # 2. Fallback para variáveis de ambiente (Local/Batch)
-    token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
-    
-    if not token or not chat_id:
-        return None, None
-    return token, chat_id
+    token   = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID",   "").strip()
+    if token and chat_id:
+        return token, chat_id
 
-def send_telegram_message(text: str, parse_mode="HTML"):
+    logger.error("Credenciais Telegram nao encontradas "
+                 "(TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID).")
+    return None, None
+
+
+# ── Envio ─────────────────────────────────────────────────────────────────────
+
+def enviar_mensagem(texto: str, parse_mode: str = "HTML") -> bool:
     token, chat_id = get_credentials()
-    if not token or not chat_id: return False
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {"chat_id": chat_id, "text": text, "parse_mode": parse_mode, "disable_web_page_preview": True}
+    if not token:
+        return False
+
+    url     = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {
+        "chat_id":                  chat_id,
+        "text":                     texto,
+        "parse_mode":               parse_mode,
+        "disable_web_page_preview": True,
+    }
     try:
-        resp = requests.post(url, json=payload, timeout=10)
-        resp.raise_for_status()
-        logger.info("✅ Alerta Telegram enviado com sucesso.")
-        return True
-    except Exception as e:
-        logger.error(f"❌ Erro Telegram (HTML): {e}")
-        # Fallback texto puro
-        payload["parse_mode"] = None
-        try:
-            requests.post(url, json=payload, timeout=10).raise_for_status()
+        r = requests.post(url, json=payload, timeout=10)
+        if r.status_code == 200 and r.json().get("ok"):
+            logger.info("Alerta Telegram enviado com sucesso.")
             return True
-        except Exception as e2:
-            logger.error(f"❌ Falha total: {e2}"); return False
+        err = r.json().get("description", "Erro desconhecido")
+        logger.error(f"Falha ao enviar ({r.status_code}): {err}")
+        # Fallback sem parse_mode
+        payload["parse_mode"] = None
+        r2 = requests.post(url, json=payload, timeout=10)
+        if r2.status_code == 200 and r2.json().get("ok"):
+            logger.info("Fallback texto puro funcionou.")
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Excepcao ao enviar: {e}")
+        return False
 
-def format_message(data: dict) -> str:
-    score = data.get("score", 50)
-    classe = str(data.get("classe", "DESCONHECIDO")).upper()
-    data_prev = data.get("data", "Amanhã")
-    especie = data.get("especie_alvo", "—")
-    horario = data.get("horario", "—")
-    tw = data.get("tw", "—")
-    chuva = data.get("chuva", "—")
-    lua_fase = data.get("lua_fase", "—")
-    lua_pct = data.get("lua_pct", "—")
-    vento = data.get("vento", "—")
-    local = data.get("local", "Barragem Castelo de Bode")
-    modelo = data.get("modelo", "v3.1")
 
-    # Formatação segura
-    tw_str = f"{tw}°C" if isinstance(tw, (int, float)) else tw
-    chuva_str = f"{chuva}mm" if isinstance(chuva, (int, float)) else chuva
-    vento_str = f"{vento} km/h" if isinstance(vento, (int, float)) else vento
-    lua_str = f"{lua_fase} ({lua_pct}%)" if isinstance(lua_pct, (int, float)) else lua_fase
+# ── Normalização do JSON ──────────────────────────────────────────────────────
 
-    msg = f"📅 Data: {data_prev}\n"
-    msg += f"📊 Score: {score}/100 ({classe})\n"
-    if especie != "—": msg += f"🐟 Espécie: {especie} | ⏰ {horario}\n"
-    if tw != "—": msg += f"🌡️ Tw: {tw_str} | 🌧️ Chuva: {chuva_str}\n"
-    if lua_fase != "—": msg += f"🌙 Lua: {lua_str} | 💨 Vento: {vento_str}\n"
+def normalizar(prev: dict) -> dict:
+    """
+    Normaliza qualquer formato de previsao_amanha.json para um dict
+    com chaves canónicas:
+      score, data, classificacao, especie, horario,
+      tw, chuva, vento, lua, alertas_lista
+    """
+    # ── Formato A: prever_amanha_v3_1.py actual ───────────────────────────────
+    if "score_previsto" in prev:
+        ck = prev.get("condicoes_chave", {})
+        alertas_raw = prev.get("alertas", [])
+        # alertas pode ser lista de strings ou lista vazia
+        if isinstance(alertas_raw, list):
+            alertas = alertas_raw
+        else:
+            alertas = []
 
-    # Alertas dinâmicos
+        score = float(prev.get("score_previsto", 0))
+        vento = float(ck.get("Vento_Max", 0))
+        chuva = float(ck.get("Chuva_24h", 0))
+
+        # Gerar alertas automáticos se a lista vier vazia
+        if not alertas:
+            if score < _LIM_SCORE: alertas.append(f"Score baixo ({score:.0f}/100)")
+            if vento > _LIM_VENTO: alertas.append(f"Vento perigoso ({vento:.0f} km/h)")
+            if chuva > _LIM_CHUVA: alertas.append(f"Chuva intensa ({chuva:.0f} mm)")
+
+        return {
+            "score":          score,
+            "data":           prev.get("data_alvo", "—"),
+            "classificacao":  prev.get("classificacao", "—"),
+            "especie":        prev.get("especie_recomendada", "—"),
+            "horario":        prev.get("melhor_horario", "—"),
+            "tw":             ck.get("Tw", "—"),
+            "chuva":          chuva,
+            "vento":          vento,
+            "lua":            ck.get("Lua", "—"),
+            "alertas_lista":  alertas,
+        }
+
+    # ── Formato B: prever_amanha legacy (score, classe, data…) ───────────────
+    lua_fase = prev.get("lua_fase", "—")
+    lua_pct  = prev.get("lua_pct", "")
+    lua_str  = f"{lua_fase} ({lua_pct}%)" if lua_pct != "" else lua_fase
+
+    score = float(prev.get("score", 0))
+    vento = float(prev.get("vento", 0))
+    chuva = float(prev.get("chuva", 0))
+
     alertas = []
-    if isinstance(score, (int, float)) and score < 20:
-        alertas.append("⚠️ ALERTA: Score muito baixo (<20)")
-    if isinstance(vento, (int, float)) and vento > 35:
-        alertas.append("💨 Vento Forte (>35km/h)")
-    if isinstance(chuva, (int, float)) and chuva > 15:
-        alertas.append("🌧️ Chuva Intensa (>15mm)")
+    if score < _LIM_SCORE: alertas.append(f"Score baixo ({score:.0f}/100)")
+    if vento > _LIM_VENTO: alertas.append(f"Vento perigoso ({vento:.0f} km/h)")
+    if chuva > _LIM_CHUVA: alertas.append(f"Chuva intensa ({chuva:.0f} mm)")
 
+    return {
+        "score":         score,
+        "data":          prev.get("data", "—"),
+        "classificacao": prev.get("classe", prev.get("classificacao", "—")),
+        "especie":       prev.get("especie_alvo", prev.get("especie_recomendada", "—")),
+        "horario":       prev.get("horario", prev.get("melhor_horario", "—")),
+        "tw":            prev.get("tw", "—"),
+        "chuva":         chuva,
+        "vento":         vento,
+        "lua":           lua_str,
+        "alertas_lista": alertas,
+    }
+
+
+# ── Formatação da mensagem ────────────────────────────────────────────────────
+
+def _esc(text) -> str:
+    """Escapa caracteres HTML para o Telegram."""
+    if text is None: return ""
+    return (str(text)
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;"))
+
+
+def formatar_mensagem(p: dict) -> str:
+    """
+    Constrói a mensagem HTML para o Telegram a partir do dict normalizado.
+    """
+    score         = p["score"]
+    classificacao = p["classificacao"].upper()
+    alertas       = p["alertas_lista"]
+
+    # Cabeçalho dinâmico
     if alertas:
-        msg = f"🚨 CONDIÇÕES DESFAVORÁVEIS 🚨\n{msg}\n" + "\n".join(alertas)
+        header = "🚨 <b>CONDIÇÕES DESFAVORÁVEIS</b> 🚨"
+    elif score >= 60:
+        header = "🌟 <b>Boas condições de pesca!</b>"
     else:
-        msg = f"✅ Condições favoráveis previstas.\n{msg}"
+        header = "🎣 <b>Previsão Diária</b>"
 
-    msg += f"\n\n💡 Modelo {modelo} | {local}"
+    # Linha de alertas (se houver)
+    alertas_html = ""
+    if alertas:
+        linhas = [f"<b>⚠️ ALERTA:</b> {_esc(a)}" for a in alertas]
+        alertas_html = "\n" + "\n".join(linhas)
+    else:
+        alertas_html = "\n✅ Condições dentro dos parâmetros normais."
+
+    # Score com classificação
+    score_str = f"{score:.1f}" if score != int(score) else f"{int(score)}"
+
+    msg = (
+        f"{header}\n"
+        f"📅 <b>Data:</b> {_esc(p['data'])}\n"
+        f"📊 <b>Score:</b> {score_str}/100 ({_esc(classificacao)})\n"
+        f"🐟 <b>Espécie:</b> {_esc(p['especie'])} | "
+        f"⏰ {_esc(p['horario'])}\n"
+        f"🌡️ <b>Tw:</b> {_esc(p['tw'])}°C | "
+        f"🌧️ Chuva: {p['chuva']}mm\n"
+        f"🌙 <b>Lua:</b> {_esc(p['lua'])} | "
+        f"💨 Vento: {p['vento']} km/h"
+        f"{alertas_html}\n\n"
+        f"💡 <i>Modelo v3.1 | Barragem Castelo de Bode</i>"
+    )
     return msg
 
+
+# ── Ponto de entrada ──────────────────────────────────────────────────────────
+
 def main():
-    # Tenta data/ primeiro, depois raiz
-    json_path = Path(__file__).resolve().parent / "data" / "previsao_amanha.json"
-    if not json_path.exists():
-        json_path = Path(__file__).resolve().parent / "previsao_amanha.json"
-    if not json_path.exists():
-        logger.info("ℹ️ previsao_amanha.json não encontrado. Ignorando.")
+    # Encontrar o JSON (raiz tem prioridade sobre data/)
+    json_path = None
+    for p in JSON_PATHS:
+        if p.exists():
+            json_path = p
+            break
+
+    if json_path is None:
+        logger.warning("previsao_amanha.json nao encontrado. Ignorando.")
         return
+
     try:
         with open(json_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+            prev = json.load(f)
     except json.JSONDecodeError as e:
-        logger.error(f"❌ JSON inválido: {e}"); return
+        logger.error(f"JSON invalido: {e}")
+        return
 
-    msg = format_message(data)
-    logger.info("📤 A enviar notificação...")
-    send_telegram_message(msg)
+    logger.info(f"A ler: {json_path}")
+
+    dados = normalizar(prev)
+    msg   = formatar_mensagem(dados)
+
+    logger.info(f"Score: {dados['score']} | {dados['classificacao']} | "
+                f"Especie: {dados['especie']}")
+    logger.info("A enviar notificacao...")
+    enviar_mensagem(msg)
+
 
 if __name__ == "__main__":
     main()
