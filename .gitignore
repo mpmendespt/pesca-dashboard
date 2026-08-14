@@ -58,3 +58,5 @@ force_fix_config.py
 fix_metadata.py
 sanitize_config.py
 limpar_logs_antigos.py
+# ###########
+/previsao_7dias.json
