@@ -8,11 +8,11 @@
   "alertas": [],
   "condicoes_chave": {
     "Tw": 25.1,
-    "Temp_Ar": 25.4,
+    "Temp_Ar": 25.7,
     "Chuva_24h": 0.0,
-    "Humidade": 74.2,
+    "Humidade": 73.2,
     "Lua": "Nova (3.2%)",
-    "Vento_Max": 17.8,
+    "Vento_Max": 18.8,
     "Ta_Media_5d": 24.8
   },
   "norm_params": {
