@@ -1,18 +1,18 @@
 {
   "model_type": "LinearRegression",
   "version": "3.1.5",
-  "trained_at": "2026-08-07T19:13:56.022683",
-  "n_samples": 28,
-  "cv_strategy": "KFold(3)",
-  "cv_r2": -0.1662,
+  "trained_at": "2026-08-14T20:25:06.456609",
+  "n_samples": 32,
+  "cv_strategy": "KFold(5)",
+  "cv_r2": -0.4019,
   "features_used": [
     "Mes",
     "Dia_Ano",
     "Fase_Ciclo"
   ],
   "feature_importances": [
-    0.6053,
-    0.0063,
-    0.3884
+    0.9078,
+    0.0155,
+    0.0767
   ]
 }
