@@ -1,7 +1,7 @@
 {
   "model_type": "LinearRegression",
   "version": "3.1.5",
-  "trained_at": "2026-08-14T20:25:06.456609",
+  "trained_at": "2026-08-14T20:47:27.652196",
   "n_samples": 32,
   "cv_strategy": "KFold(5)",
   "cv_r2": -0.4019,
