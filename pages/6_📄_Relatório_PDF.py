@@ -32,19 +32,22 @@ def _formatar_data(ts: float) -> str:
 def main():
     st.title("📄 Relatório PDF")
     st.caption(
-        "O PDF é gerado automaticamente pelo pipeline local (`previsao_pesca_v2_10.py`) "
-        "e sincronizado para esta pasta. Clique em **Download** para guardar."
+        "O PDF é gerado pelo pipeline local e sincronizado para o Streamlit Cloud via git push. "
+        "Clique em **Download** para guardar o último relatório disponível."
     )
 
     pdf_path = load_ultimo_pdf()
 
     if pdf_path is None:
         st.warning(
-            "Nenhum PDF encontrado em `data/` ou na raiz do projecto.\n\n"
-            "Para gerar um PDF, execute o pipeline completo:\n"
-            "```\npython pipeline_orquestrador_v3_1.py\n```\n"
-            "ou apenas:\n"
-            "```\npython previsao_pesca_v2_10.py\n```"
+            "Nenhum PDF encontrado em `data/pdfs/` ou na raiz do projecto.\n\n"
+            "Para gerar e disponibilizar um PDF no Streamlit Cloud:\n"
+            "1. Execute o pipeline completo localmente:\n"
+            "   ```\nrun_pesca_v3_1_automated.bat\n```\n"
+            "2. Depois, faça o deploy para atualizar o Streamlit Cloud:\n"
+            "   ```\ndeploy_dashboard.bat\n```\n\n"
+            "Esta sequência enviará os PDFs gerados para o repositório e atualizará a aplicação na nuvem.\n\n"
+            "(Para teste local, pode executar apenas: `python previsao_pesca_v2_10.py` para gerar o PDF localmente)\n"
         )
         return
 
