@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__graft__graft_find_code",
+      "Bash(dir D:\\\\_WORK_\\\\work_python_and_R\\\\___WORK___\\\\_NOTAS_\\\\docs\\\\Previsao_Pesca *)",
+      "Bash(dir D:\\\\_WORK_\\\\work_python_and_R\\\\___WORK___\\\\Previsao_Pesca *)",
+      "Bash(dir *)",
+      "Bash(fc *)",
+      "Bash(ren *)",
+      "Bash(exist *)",
+      "Bash(copy *)",
+      "Bash(del *)",
+      "Bash(cd /d \"D:\\\\_WORK_\\\\work_python_and_R\\\\___WORK___\\\\Previsao_Pesca\")",
+      "Bash(call run_pesca_v3_1_automated.bat)",
+      "Bash(cmd /c \"run_pesca_v3_1_automated.bat\")",
+      "Bash(git add *)",
+      "Bash(cmd /c \"deploy_dashboard.bat\")",
+      "Bash(deploy_dashboard.bat)",
+      "Bash(git commit *)",
+      "Bash(timeout 10 /t 5)",
+      "Bash(ping *)",
+      "Bash(git push *)",
+      "Bash(start cmd *)",
+      "Bash(timeout 10)",
+      "Bash(git check-ignore *)",
+      "Bash(cmd /c \"deploy_dashboard.bat /auto\")",
+      "Bash(cmd /c \"D:\\\\_WORK_\\\\work_python_and_R\\\\___WORK___\\\\Previsao_Pesca\\\\deploy_dashboard.bat\")",
+      "Bash(call deploy_dashboard.bat)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "graft"
+  ]
+}

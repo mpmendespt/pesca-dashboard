@@ -5,7 +5,6 @@
 # 🔐 1. Segredos e Credenciais (NUNCA COMMITAR)
 .env
 .env.*
-# data/credentials.yml
 .streamlit/secrets.toml
 .streamlit/secrets.toml.*
 .streamlit/state/
