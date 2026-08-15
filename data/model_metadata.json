@@ -1,18 +1,18 @@
 {
-  "model_type": "LinearRegression",
+  "model_type": "Ridge(alpha=1.0)",
   "version": "3.1.5",
-  "trained_at": "2026-08-14T23:05:47.742473",
-  "n_samples": 32,
+  "trained_at": "2026-08-15T14:33:29.052968",
+  "n_samples": 33,
   "cv_strategy": "KFold(5)",
-  "cv_r2": -0.4019,
+  "cv_r2": -1.439,
   "features_used": [
     "Mes",
     "Dia_Ano",
     "Fase_Ciclo"
   ],
   "feature_importances": [
-    0.9078,
-    0.0155,
-    0.0767
+    0.6893,
+    0.0012,
+    0.3096
   ]
 }
