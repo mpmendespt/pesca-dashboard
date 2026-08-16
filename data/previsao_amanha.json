@@ -1,25 +1,25 @@
 {
-  "data_alvo": "2026-08-16",
-  "score_previsto": 50.3,
+  "data_alvo": "2026-08-17",
+  "score_previsto": 58.3,
   "classificacao": "BOM",
   "especie_recomendada": "Savel",
   "melhor_horario": "Madrugada (05h-08h)",
   "nota_especie": "condicoes favoraveis",
   "alertas": [],
   "condicoes_chave": {
-    "Tw": 25.0,
-    "Temp_Ar": 27.6,
-    "Chuva_24h": 0.4,
-    "Humidade": 61.3,
-    "Lua": "Nova (8.0%)",
-    "Vento_Max": 16.6,
-    "Ta_Media_5d": 24.7
+    "Tw": 25.1,
+    "Temp_Ar": 29.5,
+    "Chuva_24h": 0.5,
+    "Humidade": 56.4,
+    "Lua": "Crescente I (14.7%)",
+    "Vento_Max": 17.5,
+    "Ta_Media_5d": 24.9
   },
   "norm_params": {
     "max_kg": 4.92,
     "max_qtd": 3.0,
     "n_sessoes": 10,
-    "data_calibracao": "2026-08-15"
+    "data_calibracao": "2026-08-16"
   },
   "nota_ml": "Modelo v3.1 | Use como referencia complementar."
 }

@@ -1,18 +1,93 @@
 {
-  "model_type": "Ridge(alpha=1.0)",
-  "version": "3.1.5",
-  "trained_at": "2026-08-15T14:33:29.052968",
-  "n_samples": 33,
-  "cv_strategy": "KFold(5)",
-  "cv_r2": -1.439,
+  "model_type": "Ridge (Regularized)",
+  "trained_at": "2026-08-16T11:03:24.654786",
+  "n_samples": 34,
+  "n_features": 14,
   "features_used": [
-    "Mes",
-    "Dia_Ano",
-    "Fase_Ciclo"
+    "Mes_Sin",
+    "Mes_Cos",
+    "Dia_Semana_Sin",
+    "Dia_Semana_Cos",
+    "Fase_Lunar_Sin",
+    "Fase_Lunar_Cos",
+    "Fim_Semana",
+    "Temporada",
+    "temp_media",
+    "temp_range",
+    "temp_agua",
+    "vento_kmh",
+    "chuva_mm",
+    "nivel_agua"
   ],
-  "feature_importances": [
-    0.6893,
-    0.0012,
-    0.3096
-  ]
+  "metrics": {
+    "cv_r2_mean": 0.0021,
+    "cv_r2_std": 0.3212,
+    "val_r2": 0.0,
+    "val_rmse": 15.31,
+    "val_mae": 13.23
+  },
+  "feature_importance": [
+    {
+      "feature": "Fase_Lunar_Cos",
+      "importance": 0.1361
+    },
+    {
+      "feature": "Dia_Semana_Sin",
+      "importance": 0.131
+    },
+    {
+      "feature": "Mes_Sin",
+      "importance": 0.1252
+    },
+    {
+      "feature": "Temporada",
+      "importance": 0.1097
+    },
+    {
+      "feature": "Fim_Semana",
+      "importance": 0.1046
+    },
+    {
+      "feature": "Fase_Lunar_Sin",
+      "importance": 0.1022
+    },
+    {
+      "feature": "nivel_agua",
+      "importance": 0.0841
+    },
+    {
+      "feature": "Dia_Semana_Cos",
+      "importance": 0.0616
+    },
+    {
+      "feature": "chuva_mm",
+      "importance": 0.0447
+    },
+    {
+      "feature": "Mes_Cos",
+      "importance": 0.0379
+    },
+    {
+      "feature": "temp_range",
+      "importance": 0.0313
+    },
+    {
+      "feature": "vento_kmh",
+      "importance": 0.0133
+    },
+    {
+      "feature": "temp_media",
+      "importance": 0.0098
+    },
+    {
+      "feature": "temp_agua",
+      "importance": 0.0085
+    }
+  ],
+  "score_stats": {
+    "mean": 37.18025,
+    "std": 22.555395452939006,
+    "min": 15.0,
+    "max": 95.4
+  }
 }
